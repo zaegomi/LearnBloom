@@ -1,0 +1,238 @@
+# 🔒 SECRETS AND ENVIRONMENT VARIABLES - NEVER COMMIT THESE!
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.backup
+
+# API Keys and secrets (extra protection)
+secrets.json
+config/secrets.js
+.secrets
+api-keys.txt
+*.key
+*.pem
+
+# 📦 DEPENDENCIES
+node_modules/
+*/node_modules/
+client/node_modules/
+server/node_modules/
+
+# Package manager files
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+.pnpm-debug.log*
+
+# 🏗️ BUILD OUTPUTS
+# React build
+client/build/
+client/dist/
+build/
+dist/
+
+# Server build (if you add TypeScript later)
+server/build/
+server/dist/
+
+# 📊 LOGS
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# 📈 COVERAGE AND TESTING
+coverage/
+*.lcov
+.nyc_output
+test-results/
+coverage-report/
+
+# 🛠️ DEVELOPMENT TOOLS
+# ESLint cache
+.eslintcache
+
+# Stylelint cache
+.stylelintcache
+
+# Optional npm cache directory
+.npm
+
+# Optional REPL history
+.node_repl_history
+
+# Microbundle cache
+.rpt2_cache/
+.rts2_cache_cjs/
+.rts2_cache_es/
+.rts2_cache_umd/
+
+# 📱 REACT SPECIFIC
+# Create React App
+/client/build
+/client/.env.local
+/client/.env.development.local
+/client/.env.test.local
+/client/.env.production.local
+
+# 🖥️ EDITOR DIRECTORIES AND FILES
+# VSCode
+.vscode/settings.json
+.vscode/launch.json
+.vscode/extensions.json
+*.code-workspace
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
+*.swp
+*.swo
+*~
+
+# Emacs
+*~
+\#*\#
+.\#*
+
+# 🖥️ OPERATING SYSTEM FILES
+# macOS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+
+# Windows
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+.directory
+
+# 📦 DEPLOYMENT AND HOSTING
+# Vercel
+.vercel
+
+# Netlify
+.netlify/
+
+# Next.js (if you migrate to Next.js later)
+.next/
+out/
+
+# Nuxt.js
+.nuxt
+.output
+
+# Gatsby
+.cache/
+public
+
+# 🗄️ DATABASES (if you add them later)
+*.sqlite
+*.sqlite3
+*.db
+*.db-journal
+
+# MongoDB
+*.mongodb
+
+# 🔧 TEMPORARY FILES AND CACHES
+# Temporary folders
+tmp/
+temp/
+.tmp/
+
+# Yarn Integrity file
+.yarn-integrity
+
+# dotenv environment variables file backups
+.env.backup
+
+# parcel-bundler cache
+.cache
+.parcel-cache
+
+# 📋 MISCELLANEOUS
+# Output of 'npm pack'
+*.tgz
+*.tar.gz
+
+# Yarn Dependency directories
+jspm_packages/
+
+# TypeScript cache (if you add TypeScript later)
+*.tsbuildinfo
+
+# Optional stylelint cache
+.stylelintcache
+
+# Storybook build outputs (if you add Storybook later)
+.out
+.storybook-out
+storybook-static
+
+# 🔄 VERSION CONTROL
+# Git
+.git/
+*.orig
+
+# 🧪 TESTING AND DOCUMENTATION
+# Jest
+.jest/
+
+# Documentation build
+docs/build/
+
+# 💼 PROJECT SPECIFIC
+# Backup files
+*.backup
+*.bak
+*.old
+
+# Local configuration files
+.localrc
+
+# PM2 ecosystem file (if using PM2)
+ecosystem.config.js
+
+# 🔐 SECURITY SCANS
+# Dependency vulnerability reports
+audit-results.json
+
+# 🎯 LEARNBLOOM SPECIFIC
+# User data (if you later add file uploads)
+uploads/
+user-data/
+
+# Generated learning paths (if you save them to files)
+generated-paths/
+
+# Custom configurations
+config/local.js
+config/production.js
+
+# Analytics and tracking data
+analytics/
+tracking/
