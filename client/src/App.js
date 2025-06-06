@@ -11,6 +11,7 @@ function App() {
   const [progress, setProgress] = useState(0);
   const [savedPaths, setSavedPaths] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [selectedStep, setSelectedStep] = useState(null);
 
   // Generate learning path by calling backend
   const generatePlan = async () => {
@@ -21,24 +22,33 @@ function App() {
 
     setLoading(true);
     try {
+      console.log('🚀 Making API call to backend...');
+      
       const response = await fetch('http://localhost:5000/api/generate-path', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
         body: JSON.stringify({ goal, level, duration, perDay })
       });
       
-      const data = await response.json();
+      console.log('📡 Response status:', response.status);
       
       if (!response.ok) {
-        throw new Error(data.error || `HTTP error! Status: ${response.status}`);
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP error! Status: ${response.status}`);
       }
+      
+      const data = await response.json();
+      console.log('✅ Received data:', data);
       
       if (!data.plan || !Array.isArray(data.plan)) {
         throw new Error('Invalid response format');
       }
       
       const newPlan = data.plan;
-
+      
       // Check for duplicates
       const isDuplicate = savedPaths.some(
         path => path.goal === goal && path.level === level && path.duration === duration && path.perDay === perDay
@@ -50,29 +60,41 @@ function App() {
       
       setPlanSteps(newPlan);
       setProgress(0);
+      setSelectedStep(null);
       setView('path');
     } catch (err) {
-      console.error('Error generating plan:', err);
+      console.error('❌ Error details:', err);
       alert(`Failed to generate plan: ${err.message}`);
     } finally {
       setLoading(false);
     }
   };
 
-  const completeStep = (step) => {
-    const newProgress = Math.round((step / planSteps.length) * 100);
+  const completeStep = (stepNumber) => {
+    const updatedSteps = planSteps.map(step => 
+      step.step === stepNumber ? { ...step, completed: true } : step
+    );
+    setPlanSteps(updatedSteps);
+    
+    const completedCount = updatedSteps.filter(step => step.completed).length;
+    const newProgress = Math.round((completedCount / planSteps.length) * 100);
     setProgress(newProgress);
     
     // Update saved paths
     const updated = savedPaths.map(path =>
       path.goal === goal && path.level === level && path.duration === duration && path.perDay === perDay
-      ? { ...path, progress: newProgress }
+      ? { ...path, plan: updatedSteps, progress: newProgress }
       : path
     );
     setSavedPaths(updated);
     
+    // Close step detail view and show completion message
+    setSelectedStep(null);
+    
     if (newProgress >= 100) {
-      setView('finished');
+      setTimeout(() => {
+        setView('finished');
+      }, 1000);
     }
   };
 
@@ -89,20 +111,32 @@ function App() {
     setPerDay(path.perDay);
     setPlanSteps(path.plan);
     setProgress(path.progress);
+    setSelectedStep(null);
     setView('progress');
   };
 
   const BackButton = () => (
     <button
-      onClick={() => setView('home')}
+      onClick={() => {
+        setSelectedStep(null);
+        setView('home');
+      }}
       className="fixed top-4 left-4 bg-green-500 text-white px-3 py-2 text-sm rounded-full shadow-lg z-50 hover:bg-green-600 transition-colors"
     >
       ← Back to Home
     </button>
   );
 
+  const StepBackButton = () => (
+    <button
+      onClick={() => setSelectedStep(null)}
+      className="mb-4 bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition-colors"
+    >
+      ← Back to Steps
+    </button>
+  );
+
   const renderPlant = () => {
-    // Simple plant representation based on progress
     const stages = ['🌱', '🌿', '🌳', '🌸'];
     const stage = Math.min(Math.floor(progress / 25), 3);
     return (
@@ -229,29 +263,102 @@ function App() {
         </div>
       )}
 
-      {view === 'path' && (
-        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 relative">
+      {view === 'path' && !selectedStep && (
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl p-8 relative">
           <BackButton />
           <h2 className="text-2xl font-bold text-green-700 mb-6 text-center mt-8">Path to {goal}</h2>
           
           <div className="space-y-3 max-h-96 overflow-y-auto">
             {planSteps.map(step => (
-              <div key={step.step} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+              <div key={step.step} className={`border rounded-lg p-4 transition-all cursor-pointer ${
+                step.completed 
+                  ? 'bg-green-50 border-green-300 opacity-75' 
+                  : 'border-gray-200 hover:shadow-md hover:border-green-300'
+              }`}>
                 <button 
-                  onClick={() => completeStep(step.step)} 
+                  onClick={() => setSelectedStep(step)} 
                   className="w-full text-left"
+                  disabled={step.completed}
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
-                      <h3 className="font-semibold text-green-700">Step {step.step}: {step.label}</h3>
+                      <h3 className={`font-semibold ${step.completed ? 'text-green-600' : 'text-green-700'}`}>
+                        {step.completed ? '✅ ' : ''}{step.label}
+                      </h3>
                       <p className="text-gray-600 text-sm mt-1">{step.description}</p>
                       <p className="text-blue-600 text-xs mt-2">⏱️ {step.estimatedTime}</p>
                     </div>
-                    <div className="ml-4 text-green-600">✓</div>
+                    <div className="ml-4 text-gray-400">
+                      {step.completed ? '✅' : '👁️'}
+                    </div>
                   </div>
                 </button>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {view === 'path' && selectedStep && (
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl p-8 relative max-h-screen overflow-y-auto">
+          <BackButton />
+          <div className="mt-8">
+            <StepBackButton />
+            
+            <div className="mb-6">
+              <h2 className="text-3xl font-bold text-green-700 mb-2">
+                Step {selectedStep.step}: {selectedStep.label}
+              </h2>
+              <p className="text-lg text-gray-600">{selectedStep.description}</p>
+              <p className="text-blue-600 font-semibold mt-2">⏱️ Estimated Time: {selectedStep.estimatedTime}</p>
+            </div>
+
+            <div className="space-y-6">
+              {/* Detailed Instructions */}
+              <div className="bg-blue-50 rounded-lg p-6">
+                <h3 className="text-xl font-semibold text-blue-800 mb-3">📋 What You'll Do</h3>
+                <p className="text-gray-700 leading-relaxed">{selectedStep.details}</p>
+              </div>
+
+              {/* Tasks */}
+              <div className="bg-green-50 rounded-lg p-6">
+                <h3 className="text-xl font-semibold text-green-800 mb-3">✅ Tasks to Complete</h3>
+                <ul className="space-y-2">
+                  {selectedStep.tasks?.map((task, index) => (
+                    <li key={index} className="flex items-start">
+                      <span className="text-green-600 mr-2">•</span>
+                      <span className="text-gray-700">{task}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              {/* Resources */}
+              <div className="bg-purple-50 rounded-lg p-6">
+                <h3 className="text-xl font-semibold text-purple-800 mb-3">📚 Recommended Resources</h3>
+                <ul className="space-y-2">
+                  {selectedStep.resources?.map((resource, index) => (
+                    <li key={index} className="flex items-start">
+                      <span className="text-purple-600 mr-2">•</span>
+                      <span className="text-gray-700">{resource}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              {/* Completion Button */}
+              <div className="bg-gray-50 rounded-lg p-6 text-center">
+                <p className="text-gray-600 mb-4">
+                  Once you've completed all the tasks above, mark this step as finished to continue your learning journey.
+                </p>
+                <button 
+                  onClick={() => completeStep(selectedStep.step)}
+                  className="bg-green-600 text-white px-8 py-4 rounded-xl shadow-lg hover:bg-green-700 transition-colors font-semibold text-lg"
+                >
+                  🎉 Mark Step {selectedStep.step} as Complete
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
