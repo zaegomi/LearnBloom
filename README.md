@@ -65,13 +65,18 @@ learnbloom-ai/
    # Edit .env and add your OpenAI API key
    ```
 
-3. **Install backend dependencies:**
+3. **Get your OpenAI API Key:**
+   - Visit [platform.openai.com](https://platform.openai.com/account/api-keys)
+   - Create a new secret key
+   - Copy the key and paste it in your `.env` file
+
+4. **Install backend dependencies:**
    ```bash
    cd server
    npm install
    ```
 
-4. **Install frontend dependencies:**
+5. **Install frontend dependencies:**
    ```bash
    cd ../client
    npm install
