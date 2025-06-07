@@ -270,11 +270,6 @@ function App() {
               className="w-full py-4 bg-blue-600 text-white rounded-xl shadow-lg hover:bg-blue-700 transition-colors font-semibold text-lg"
             >
               🌿 Continue Existing Path
-              {savedPaths.length > 0 && (
-                <span className="ml-2 bg-blue-800 text-xs px-2 py-1 rounded-full">
-                  {savedPaths.length}
-                </span>
-              )}
             </button>
             
             <button 
@@ -282,11 +277,6 @@ function App() {
               className="w-full py-4 bg-purple-600 text-white rounded-xl shadow-lg hover:bg-purple-700 transition-colors font-semibold text-lg"
             >
               🌸 View Completed Paths
-              {completedPaths.length > 0 && (
-                <span className="ml-2 bg-purple-800 text-xs px-2 py-1 rounded-full">
-                  {completedPaths.length}
-                </span>
-              )}
             </button>
           </div>
           
