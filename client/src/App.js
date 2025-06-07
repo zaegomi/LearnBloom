@@ -118,7 +118,7 @@ function App() {
       console.log('🚀 Making API call to backend...');
       
       const API_BASE_URL = process.env.NODE_ENV === 'production' 
-        ? '/api' 
+        ? 'https://learn-bloom.vercel.app/api' 
         : 'http://localhost:5000/api';
 
       const response = await fetch(`${API_BASE_URL}/generate-path`, {
