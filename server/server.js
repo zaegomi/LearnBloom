@@ -170,9 +170,9 @@ For each day, provide:
 3. Day of week (1-7, where 1=Monday, 7=Sunday)
 4. Step title (concise, actionable)
 5. Description (brief overview)
-6. Detailed explanation (what to do and why)
-7. Specific tasks to complete (3-5 actionable items)
-8. Recommended resources (3-4 items)
+6. Detailed explanation (what to do and why it's important)
+7. Specific tasks to complete (3-5 actionable items with time estimates)
+8. Recommended resources (3-4 high-quality learning materials)
 9. Estimated time (should match ${perDay} hours)
 10. Week theme/focus area
 
@@ -184,36 +184,38 @@ Return as JSON array with this exact structure:
     "dayOfWeek": 1,
     "weekTheme": "Foundation & Setup",
     "label": "Day 1: Setting Up Your Learning Environment",
-    "description": "Begin your journey by setting up everything you need",
-    "details": "Detailed explanation of what to do, why it's important, and how to approach it effectively. Include specific guidance for ${perDay} hours of daily study.",
-    "tasks": ["Task 1 with time estimates", "Task 2 with time estimates", "Task 3 with time estimates", "Task 4 with time estimates"],
-    "resources": ["Resource 1", "Resource 2", "Resource 3", "Resource 4"],
+    "description": "Begin your journey by setting up everything you need to learn ${goal} effectively",
+    "details": "This first day is crucial for establishing a strong foundation. You'll set up your development environment, familiarize yourself with essential tools, and understand the learning roadmap ahead. Spend time configuring your workspace properly as this will save hours later. Focus on understanding why each tool is important and how it fits into the ${goal} ecosystem.",
+    "tasks": ["Install required software and tools (45 min)", "Configure development environment (30 min)", "Complete setup verification exercises (30 min)", "Read introductory materials and take notes (15 min)"],
+    "resources": ["Official ${goal} documentation", "Environment setup tutorial videos", "Recommended textbooks and guides", "Community forums and support channels"],
     "estimatedTime": "${perDay} hours",
-    "weeklyGoal": "What should be accomplished by end of this week",
+    "weeklyGoal": "Complete environment setup and understand fundamental concepts",
     "completed": false
   }
 ]
 
-Make each week build logically on the previous week. Ensure daily progression within each week is cohesive and works toward the weekly goal. Include lighter content for weekends (days 6-7 of each week) like review, practice, or project work.
+Make each week build logically on the previous week. Ensure daily progression within each week is cohesive and works toward the weekly goal. Include appropriate content for weekends (days 6-7 of each week) like review, practice, or project work.
 
-For ${duration} weeks with ${perDay} hours daily study, create a realistic progression that respects the time commitment and learning pace. Each day should have meaningful content that builds toward mastery of ${goal}.`;
+For ${duration} weeks with ${perDay} hours daily study, create a realistic progression that respects the time commitment and learning pace. Each day should have meaningful, detailed content that builds toward mastery of ${goal}.
+
+IMPORTANT: Return ONLY valid JSON. No additional text, explanations, or formatting outside the JSON array.`;
 
     console.log('🤖 Calling OpenAI API...');
 
     const completion = await openai.chat.completions.create({
-      model: "gpt-3.5-turbo",
+      model: "gpt-4o-mini", // Use GPT-4 mini for better JSON consistency and higher token limits
       messages: [
         {
           role: "system",
-          content: "You are an expert learning path designer. Create detailed, structured learning plans with specific tasks and resources. Always respond with valid JSON arrays only, no additional text or formatting."
+          content: "You are an expert learning path designer. Create detailed, comprehensive learning plans that provide real educational value. Always respond with valid JSON arrays only, no additional text or formatting. Ensure each step has thorough, actionable content that truly helps someone learn."
         },
         {
           role: "user",
           content: prompt
         }
       ],
-      max_tokens: 3000,
-      temperature: 0.7,
+      max_tokens: 4000,
+      temperature: 0.3,
     });
 
     console.log('📄 OpenAI response received');
@@ -222,19 +224,55 @@ For ${duration} weeks with ${perDay} hours daily study, create a realistic progr
     // Parse the JSON response
     let plan;
     try {
-      plan = JSON.parse(response);
+      // Clean the response first
+      const cleanedResponse = response.trim();
+      plan = JSON.parse(cleanedResponse);
       console.log('✅ JSON parsed successfully');
     } catch (parseError) {
-      console.warn('⚠️ Direct JSON parse failed, trying to extract...');
-      // Try to extract JSON from response
-      const jsonMatch = response.match(/\[[\s\S]*\]/);
-      if (jsonMatch) {
-        plan = JSON.parse(jsonMatch[0]);
-        console.log('✅ JSON extracted and parsed successfully');
-      } else {
-        console.error('❌ Could not extract valid JSON from response');
-        console.error('OpenAI Response:', response);
-        throw new Error('OpenAI returned invalid JSON format');
+      console.warn('⚠️ Direct JSON parse failed, trying to extract and fix...');
+      console.log('Response length:', response.length);
+      console.log('Response preview:', response.substring(0, 200) + '...');
+      
+      try {
+        // Try to extract JSON array from response
+        const jsonMatch = response.match(/\[[\s\S]*\]/);
+        if (jsonMatch) {
+          let jsonString = jsonMatch[0];
+          
+          // Try to fix common JSON issues
+          // Remove trailing commas before closing brackets
+          jsonString = jsonString.replace(/,\s*([}\]])/g, '$1');
+          
+          // Ensure proper string escaping
+          jsonString = jsonString.replace(/"/g, '"').replace(/"/g, '"');
+          
+          // Try to complete truncated JSON by adding closing brackets if needed
+          const openBraces = (jsonString.match(/\{/g) || []).length;
+          const closeBraces = (jsonString.match(/\}/g) || []).length;
+          const openBrackets = (jsonString.match(/\[/g) || []).length;
+          const closeBrackets = (jsonString.match(/\]/g) || []).length;
+          
+          // Add missing closing braces
+          for (let i = 0; i < openBraces - closeBraces; i++) {
+            jsonString = jsonString.replace(/,?\s*$/, '}');
+          }
+          
+          // Add missing closing brackets
+          for (let i = 0; i < openBrackets - closeBrackets; i++) {
+            jsonString += ']';
+          }
+          
+          plan = JSON.parse(jsonString);
+          console.log('✅ JSON extracted and fixed successfully');
+        } else {
+          throw new Error('No JSON array found in response');
+        }
+      } catch (extractError) {
+        console.error('❌ Could not extract or fix JSON from response');
+        console.error('Parse error:', parseError.message);
+        console.error('Extract error:', extractError.message);
+        console.error('Response sample:', response.substring(0, 500));
+        throw new Error(`Invalid JSON response from OpenAI: ${parseError.message}`);
       }
     }
 
