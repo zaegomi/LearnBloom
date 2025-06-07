@@ -338,7 +338,7 @@ function App() {
               </div>
               
               <div>
-                <label className="block text-gray-700 mb-2 font-semibold text-sm">Per Day</label>
+                <label className="block text-gray-700 mb-2 font-semibold text-sm">Hours Per Day</label>
                 <input 
                   type="number" 
                   value={perDay} 
@@ -346,6 +346,7 @@ function App() {
                   max={10}
                   onChange={e => setPerDay(+e.target.value)} 
                   className="w-full border-2 border-gray-300 rounded-lg px-3 py-3 focus:border-green-500 focus:outline-none"
+                  placeholder="Hours"
                 />
               </div>
             </div>
