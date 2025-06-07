@@ -139,41 +139,64 @@ app.post('/api/generate-path', async (req, res) => {
       });
     }
 
-    const totalSteps = duration * perDay;
-    console.log(`🎯 Generating ${totalSteps} detailed steps for "${goal}" (${level} level) using OpenAI`);
+    const totalSteps = duration * 7; // 7 days per week
+    console.log(`🎯 Generating ${totalSteps} detailed steps for "${goal}" (${level} level) - ${duration} weeks × 7 days = ${totalSteps} days using OpenAI`);
 
-    // Create enhanced prompt for OpenAI
-    const prompt = `Create a detailed learning path for: "${goal}"
+    // Create enhanced prompt for OpenAI with week-by-week structure
+    const prompt = `Create a comprehensive ${duration}-week learning path for: "${goal}"
 
 Requirements:
 - Experience level: ${level}
-- Duration: ${duration} weeks  
-- Study sessions per day: ${perDay}
-- Total steps needed: ${totalSteps}
+- Duration: ${duration} weeks (${totalSteps} total days)
+- Daily study time: ${perDay} hours per day
+- Total steps needed: ${totalSteps} (7 days per week)
 
-For each step, provide detailed information including:
-1. Step title (concise, actionable)
-2. Description (brief overview)
-3. Detailed explanation (what to do and why)
-4. Specific tasks to complete (3-5 actionable items)
-5. Recommended resources (3-4 items)
-6. Estimated time to complete
+Structure the learning path with week-by-week progression. Create exactly 7 days of content for each week.
+
+Week-by-week themes should follow this progression:
+Week 1: Foundation & Setup
+Week 2: Core Concepts  
+Week 3: Practical Application
+Week 4: Advanced Techniques
+Week 5: Specialization
+Week 6: Mastery & Projects
+Week 7: Professional Skills
+Week 8: Expert Applications
+(Continue pattern for longer durations)
+
+For each day, provide:
+1. Day number (1-${totalSteps})
+2. Week number (1-${duration})
+3. Day of week (1-7, where 1=Monday, 7=Sunday)
+4. Step title (concise, actionable)
+5. Description (brief overview)
+6. Detailed explanation (what to do and why)
+7. Specific tasks to complete (3-5 actionable items)
+8. Recommended resources (3-4 items)
+9. Estimated time (should match ${perDay} hours)
+10. Week theme/focus area
 
 Return as JSON array with this exact structure:
 [
   {
     "step": 1,
-    "label": "Step title here",
-    "description": "Brief description",
-    "details": "Detailed explanation of what to do, why it's important, and how to approach it effectively.",
-    "tasks": ["Task 1", "Task 2", "Task 3", "Task 4"],
-    "resources": ["Resource 1", "Resource 2", "Resource 3"],
-    "estimatedTime": "45-60 minutes",
+    "week": 1,
+    "dayOfWeek": 1,
+    "weekTheme": "Foundation & Setup",
+    "label": "Day 1: Setting Up Your Learning Environment",
+    "description": "Begin your journey by setting up everything you need",
+    "details": "Detailed explanation of what to do, why it's important, and how to approach it effectively. Include specific guidance for ${perDay} hours of daily study.",
+    "tasks": ["Task 1 with time estimates", "Task 2 with time estimates", "Task 3 with time estimates", "Task 4 with time estimates"],
+    "resources": ["Resource 1", "Resource 2", "Resource 3", "Resource 4"],
+    "estimatedTime": "${perDay} hours",
+    "weeklyGoal": "What should be accomplished by end of this week",
     "completed": false
   }
 ]
 
-Make the progression logical and ensure each step builds on previous knowledge. Focus on practical, actionable guidance that helps someone actually learn ${goal}.`;
+Make each week build logically on the previous week. Ensure daily progression within each week is cohesive and works toward the weekly goal. Include lighter content for weekends (days 6-7 of each week) like review, practice, or project work.
+
+For ${duration} weeks with ${perDay} hours daily study, create a realistic progression that respects the time commitment and learning pace. Each day should have meaningful content that builds toward mastery of ${goal}.`;
 
     console.log('🤖 Calling OpenAI API...');
 
@@ -233,24 +256,41 @@ Make the progression logical and ensure each step builds on previous knowledge. 
       } else {
         // Ask OpenAI to generate more steps if needed
         while (plan.length < totalSteps) {
+          const currentStep = plan.length + 1;
+          const weekNumber = Math.ceil(currentStep / 7);
+          const dayOfWeek = ((currentStep - 1) % 7) + 1;
+          const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+          const dayName = dayNames[dayOfWeek - 1];
+          
+          const weekThemes = [
+            "Foundation & Setup", "Core Concepts", "Practical Application", 
+            "Advanced Techniques", "Specialization", "Mastery & Projects",
+            "Professional Skills", "Expert Applications"
+          ];
+          const theme = weekThemes[Math.min(weekNumber - 1, weekThemes.length - 1)];
+          
           plan.push({
-            step: plan.length + 1,
-            label: `Advanced Practice ${plan.length + 1}`,
-            description: `Step ${plan.length + 1}: Continue practicing and refining your skills`,
-            details: `This step focuses on reinforcing what you've learned so far. Practice the concepts from previous steps and explore more advanced applications. Take time to experiment and deepen your understanding.`,
+            step: currentStep,
+            week: weekNumber,
+            dayOfWeek: dayOfWeek,
+            weekTheme: theme,
+            label: `Day ${currentStep} (${dayName}): Advanced Practice`,
+            description: `Week ${weekNumber}, Day ${dayOfWeek}: Continue practicing and refining your skills in ${theme.toLowerCase()}`,
+            details: `This ${dayName} focuses on reinforcing what you've learned so far in ${theme.toLowerCase()}. Practice the concepts from previous days and explore more advanced applications. Dedicate your ${perDay} hours to deepening your understanding through hands-on work.`,
             tasks: [
-              "Review previous concepts",
-              "Practice advanced exercises", 
-              "Experiment with variations",
-              "Reflect on your learning"
+              `Review Week ${weekNumber} concepts (30-45 min)`,
+              "Practice advanced exercises (1-2 hours)", 
+              "Experiment with new variations (30-45 min)",
+              "Reflect on your learning progress (15-30 min)"
             ],
             resources: [
-              "Previous step materials",
+              "Previous day materials",
               "Advanced practice exercises",
-              "Community forums",
-              "Additional tutorials"
+              "Community forums and discussions",
+              "Additional tutorials and documentation"
             ],
-            estimatedTime: "60-90 minutes",
+            estimatedTime: `${perDay} hours`,
+            weeklyGoal: `Master the ${theme.toLowerCase()} concepts and be ready for next week's challenges`,
             completed: false
           });
         }
@@ -258,16 +298,35 @@ Make the progression logical and ensure each step builds on previous knowledge. 
     }
 
     // Ensure step numbers are sequential and all required fields exist
-    plan = plan.map((step, index) => ({
-      step: index + 1,
-      label: step.label || `Step ${index + 1}`,
-      description: step.description || `Step ${index + 1} description`,
-      details: step.details || "Complete this learning step to progress in your journey.",
-      tasks: Array.isArray(step.tasks) ? step.tasks : ["Complete the learning objectives"],
-      resources: Array.isArray(step.resources) ? step.resources : ["Study materials", "Practice exercises"],
-      estimatedTime: step.estimatedTime || "45-60 minutes",
-      completed: false
-    }));
+    plan = plan.map((step, index) => {
+      const currentStep = index + 1;
+      const weekNumber = Math.ceil(currentStep / 7);
+      const dayOfWeek = ((currentStep - 1) % 7) + 1;
+      const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+      const dayName = dayNames[dayOfWeek - 1];
+      
+      const weekThemes = [
+        "Foundation & Setup", "Core Concepts", "Practical Application", 
+        "Advanced Techniques", "Specialization", "Mastery & Projects",
+        "Professional Skills", "Expert Applications"
+      ];
+      const theme = weekThemes[Math.min(weekNumber - 1, weekThemes.length - 1)];
+      
+      return {
+        step: currentStep,
+        week: step.week || weekNumber,
+        dayOfWeek: step.dayOfWeek || dayOfWeek,
+        weekTheme: step.weekTheme || theme,
+        label: step.label || `Day ${currentStep} (${dayName}): Week ${weekNumber} Learning`,
+        description: step.description || `Week ${weekNumber}, Day ${dayOfWeek} - ${dayName} learning session`,
+        details: step.details || "Complete this learning step to progress in your journey.",
+        tasks: Array.isArray(step.tasks) ? step.tasks : ["Complete the learning objectives"],
+        resources: Array.isArray(step.resources) ? step.resources : ["Study materials", "Practice exercises"],
+        estimatedTime: step.estimatedTime || `${perDay} hours`,
+        weeklyGoal: step.weeklyGoal || `Progress through Week ${weekNumber} objectives`,
+        completed: false
+      };
+    });
 
     console.log(`✅ Successfully generated ${plan.length} detailed learning steps using OpenAI`);
 
@@ -288,6 +347,12 @@ Make the progression logical and ensure each step builds on previous knowledge. 
 
   } catch (error) {
     console.error('❌ Error generating learning path:', error);
+    console.error('❌ Error details:', {
+      message: error.message,
+      code: error.code,
+      type: error.type,
+      stack: error.stack?.split('\n').slice(0, 3).join('\n')
+    });
     
     // Handle specific OpenAI errors
     if (error.code === 'insufficient_quota') {
@@ -327,12 +392,27 @@ Make the progression logical and ensure each step builds on previous knowledge. 
       });
     }
 
-    // Generic error - no fallback
+    // Context length error
+    if (error.code === 'context_length_exceeded') {
+      return res.status(400).json({
+        error: 'Prompt too long',
+        message: 'The learning path request is too complex for the AI model.',
+        code: 'PROMPT_TOO_LONG',
+        solution: 'Try a shorter duration or simpler goal'
+      });
+    }
+
+    // Generic error - provide more details
     res.status(500).json({ 
       error: 'Failed to generate learning path',
-      message: error.message,
+      message: error.message || 'Unknown error occurred',
       code: error.code || 'GENERATION_FAILED',
-      details: 'OpenAI API is required for generating learning paths'
+      details: 'OpenAI API is required for generating learning paths. Check server logs for more details.',
+      debugInfo: {
+        hasOpenAI: !!openai,
+        hasApiKey: !!process.env.OPENAI_API_KEY,
+        errorType: error.constructor.name
+      }
     });
   }
 });

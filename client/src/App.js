@@ -373,37 +373,101 @@ function App() {
       )}
 
       {view === 'path' && !selectedStep && (
-        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl p-8 relative">
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl p-8 relative">
           <BackButton />
-          <h2 className="text-2xl font-bold text-green-700 mb-6 text-center mt-8">Path to {goal}</h2>
+          <h2 className="text-2xl font-bold text-green-700 mb-6 text-center mt-8">
+            {duration}-Week Path to {goal}
+          </h2>
           
-          <div className="space-y-3 max-h-96 overflow-y-auto">
-            {planSteps.map(step => (
-              <div key={step.step} className={`border rounded-lg p-4 transition-all cursor-pointer ${
-                step.completed 
-                  ? 'bg-green-50 border-green-300 opacity-75' 
-                  : 'border-gray-200 hover:shadow-md hover:border-green-300'
-              }`}>
-                <button 
-                  onClick={() => setSelectedStep(step)} 
-                  className="w-full text-left"
-                  disabled={step.completed}
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <h3 className={`font-semibold ${step.completed ? 'text-green-600' : 'text-green-700'}`}>
-                        {step.completed ? '✅ ' : ''}{step.label}
-                      </h3>
-                      <p className="text-gray-600 text-sm mt-1">{step.description}</p>
-                      <p className="text-blue-600 text-xs mt-2">⏱️ {step.estimatedTime}</p>
+          <div className="max-h-96 overflow-y-auto">
+            {/* Group steps by week */}
+            {Array.from({ length: duration }, (_, weekIndex) => {
+              const weekNumber = weekIndex + 1;
+              const weekSteps = planSteps.filter(step => step.week === weekNumber);
+              
+              if (weekSteps.length === 0) return null;
+              
+              const weekTheme = weekSteps[0]?.weekTheme || `Week ${weekNumber}`;
+              const completedInWeek = weekSteps.filter(step => step.completed).length;
+              const weekProgress = Math.round((completedInWeek / weekSteps.length) * 100);
+              const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+              
+              return (
+                <div key={weekNumber} className="mb-6">
+                  {/* Week Header */}
+                  <div className="bg-gradient-to-r from-green-100 to-blue-100 rounded-lg p-4 mb-3">
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <h3 className="text-lg font-bold text-green-800">
+                          Week {weekNumber}: {weekTheme}
+                        </h3>
+                        <p className="text-sm text-gray-600">
+                          7 days • {perDay} hours per day • {weekSteps.length} total sessions
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-2xl font-bold text-green-700">{weekProgress}%</div>
+                        <div className="text-xs text-gray-500">{completedInWeek}/{weekSteps.length} days</div>
+                      </div>
                     </div>
-                    <div className="ml-4 text-gray-400">
-                      {step.completed ? '✅' : '👁️'}
+                    
+                    {/* Week Progress Bar */}
+                    <div className="mt-3 bg-gray-200 rounded-full h-2">
+                      <div 
+                        className="bg-gradient-to-r from-green-400 to-green-600 h-2 rounded-full transition-all duration-300" 
+                        style={{ width: `${weekProgress}%` }}
+                      ></div>
                     </div>
                   </div>
-                </button>
-              </div>
-            ))}
+                  
+                  {/* Week Steps - 7 days */}
+                  <div className="grid grid-cols-1 gap-2 ml-4">
+                    {weekSteps.map(step => {
+                      const dayName = dayNames[(step.dayOfWeek || ((step.step - 1) % 7)) - 1] || 'Day';
+                      const isWeekend = step.dayOfWeek === 6 || step.dayOfWeek === 7;
+                      
+                      return (
+                        <div key={step.step} className={`border rounded-lg p-3 transition-all cursor-pointer ${
+                          step.completed 
+                            ? 'bg-green-50 border-green-300 opacity-75' 
+                            : isWeekend 
+                              ? 'border-blue-200 bg-blue-50 hover:shadow-md hover:border-blue-300'
+                              : 'border-gray-200 hover:shadow-md hover:border-green-300'
+                        }`}>
+                          <button 
+                            onClick={() => setSelectedStep(step)} 
+                            className="w-full text-left"
+                            disabled={step.completed}
+                          >
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1">
+                                <h4 className={`font-semibold text-sm ${
+                                  step.completed 
+                                    ? 'text-green-600' 
+                                    : isWeekend 
+                                      ? 'text-blue-700' 
+                                      : 'text-green-700'
+                                }`}>
+                                  {step.completed ? '✅ ' : isWeekend ? '📅 ' : '📚 '}
+                                  {dayName}: {step.label}
+                                </h4>
+                                <p className="text-gray-600 text-xs mt-1">{step.description}</p>
+                                <p className={`text-xs mt-1 ${isWeekend ? 'text-blue-600' : 'text-blue-600'}`}>
+                                  ⏱️ {step.estimatedTime}
+                                </p>
+                              </div>
+                              <div className="ml-3 text-gray-400 text-sm">
+                                {step.completed ? '✅' : '👁️'}
+                              </div>
+                            </div>
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
@@ -416,10 +480,18 @@ function App() {
             
             <div className="mb-6">
               <h2 className="text-3xl font-bold text-green-700 mb-2">
-                Step {selectedStep.step}: {selectedStep.label}
+                {selectedStep.label}
               </h2>
+              <div className="bg-green-100 rounded-lg p-3 mb-4">
+                <p className="text-green-800 font-semibold text-sm">
+                  📅 Week {selectedStep.week}: {selectedStep.weekTheme} • Day {((selectedStep.step - 1) % 7) + 1}
+                </p>
+                <p className="text-green-700 text-sm mt-1">
+                  🎯 Weekly Goal: {selectedStep.weeklyGoal}
+                </p>
+              </div>
               <p className="text-lg text-gray-600">{selectedStep.description}</p>
-              <p className="text-blue-600 font-semibold mt-2">⏱️ Estimated Time: {selectedStep.estimatedTime}</p>
+              <p className="text-blue-600 font-semibold mt-2">⏱️ Time Commitment: {selectedStep.estimatedTime}</p>
             </div>
 
             <div className="space-y-6">
@@ -464,7 +536,7 @@ function App() {
                   onClick={() => completeStep(selectedStep.step)}
                   className="bg-green-600 text-white px-8 py-4 rounded-xl shadow-lg hover:bg-green-700 transition-colors font-semibold text-lg"
                 >
-                  🎉 Mark Step {selectedStep.step} as Complete
+                  🎉 Complete Day {((selectedStep.step - 1) % 7) + 1} ({selectedStep.estimatedTime})
                 </button>
               </div>
             </div>
