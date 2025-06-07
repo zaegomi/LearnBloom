@@ -429,7 +429,7 @@ function App() {
                       return (
                         <div key={step.step} className={`border rounded-lg p-3 transition-all cursor-pointer ${
                           step.completed 
-                            ? 'bg-green-50 border-green-300 opacity-75' 
+                            ? 'bg-green-50 border-green-300' 
                             : isWeekend 
                               ? 'border-blue-200 bg-blue-50 hover:shadow-md hover:border-blue-300'
                               : 'border-gray-200 hover:shadow-md hover:border-green-300'
@@ -437,7 +437,6 @@ function App() {
                           <button 
                             onClick={() => setSelectedStep(step)} 
                             className="w-full text-left"
-                            disabled={step.completed}
                           >
                             <div className="flex items-start justify-between">
                               <div className="flex-1">
@@ -457,7 +456,7 @@ function App() {
                                 </p>
                               </div>
                               <div className="ml-3 text-gray-400 text-sm">
-                                {step.completed ? '✅' : '👁️'}
+                                {step.completed ? '📖' : '👁️'}
                               </div>
                             </div>
                           </button>
@@ -529,15 +528,31 @@ function App() {
 
               {/* Completion Button */}
               <div className="bg-gray-50 rounded-lg p-6 text-center">
-                <p className="text-gray-600 mb-4">
-                  Once you've completed all the tasks above, mark this step as finished to continue your learning journey.
-                </p>
-                <button 
-                  onClick={() => completeStep(selectedStep.step)}
-                  className="bg-green-600 text-white px-8 py-4 rounded-xl shadow-lg hover:bg-green-700 transition-colors font-semibold text-lg"
-                >
-                  🎉 Complete Day {((selectedStep.step - 1) % 7) + 1} ({selectedStep.estimatedTime})
-                </button>
+                {selectedStep.completed ? (
+                  <div>
+                    <p className="text-green-600 mb-4 font-semibold">
+                      ✅ This step has been completed! You can review the content anytime.
+                    </p>
+                    <button 
+                      onClick={() => setSelectedStep(null)}
+                      className="bg-blue-600 text-white px-8 py-4 rounded-xl shadow-lg hover:bg-blue-700 transition-colors font-semibold text-lg"
+                    >
+                      📖 Back to Learning Path
+                    </button>
+                  </div>
+                ) : (
+                  <div>
+                    <p className="text-gray-600 mb-4">
+                      Once you've completed all the tasks above, mark this step as finished to continue your learning journey.
+                    </p>
+                    <button 
+                      onClick={() => completeStep(selectedStep.step)}
+                      className="bg-green-600 text-white px-8 py-4 rounded-xl shadow-lg hover:bg-green-700 transition-colors font-semibold text-lg"
+                    >
+                      🎉 Complete Day {((selectedStep.step - 1) % 7) + 1} ({selectedStep.estimatedTime})
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </div>
