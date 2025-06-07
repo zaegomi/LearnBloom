@@ -1,17 +1,110 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import './App.css';
 
 function App() {
-  const [view, setView] = useState('home');
-  const [goal, setGoal] = useState('');
-  const [level, setLevel] = useState('Beginner');
-  const [duration, setDuration] = useState(4);
-  const [perDay, setPerDay] = useState(1);
-  const [planSteps, setPlanSteps] = useState([]);
-  const [progress, setProgress] = useState(0);
-  const [savedPaths, setSavedPaths] = useState([]);
+  // Storage helper functions
+  const saveToStorage = (key, data) => {
+    try {
+      localStorage.setItem(`learnbloom-${key}`, JSON.stringify(data));
+    } catch (error) {
+      console.error('Error saving to localStorage:', error);
+    }
+  };
+
+  const loadFromStorage = (key, defaultValue) => {
+    try {
+      const item = localStorage.getItem(`learnbloom-${key}`);
+      return item ? JSON.parse(item) : defaultValue;
+    } catch (error) {
+      console.error('Error loading from localStorage:', error);
+      return defaultValue;
+    }
+  };
+
+  // Initialize state with saved data
+  const [view, setView] = useState(() => loadFromStorage('view', 'home'));
+  const [goal, setGoal] = useState(() => loadFromStorage('goal', ''));
+  const [level, setLevel] = useState(() => loadFromStorage('level', 'Beginner'));
+  const [duration, setDuration] = useState(() => loadFromStorage('duration', 4));
+  const [perDay, setPerDay] = useState(() => loadFromStorage('perDay', 1));
+  const [planSteps, setPlanSteps] = useState(() => loadFromStorage('planSteps', []));
+  const [progress, setProgress] = useState(() => loadFromStorage('progress', 0));
+  const [savedPaths, setSavedPaths] = useState(() => loadFromStorage('savedPaths', []));
   const [loading, setLoading] = useState(false);
   const [selectedStep, setSelectedStep] = useState(null);
+
+  // Auto-save when data changes
+  useEffect(() => {
+    saveToStorage('view', view);
+  }, [view]);
+
+  useEffect(() => {
+    saveToStorage('goal', goal);
+  }, [goal]);
+
+  useEffect(() => {
+    saveToStorage('level', level);
+  }, [level]);
+
+  useEffect(() => {
+    saveToStorage('duration', duration);
+  }, [duration]);
+
+  useEffect(() => {
+    saveToStorage('perDay', perDay);
+  }, [perDay]);
+
+  useEffect(() => {
+    saveToStorage('planSteps', planSteps);
+  }, [planSteps]);
+
+  useEffect(() => {
+    saveToStorage('progress', progress);
+  }, [progress]);
+
+  useEffect(() => {
+    saveToStorage('savedPaths', savedPaths);
+  }, [savedPaths]);
+
+  // Clear all data function (for testing/reset)
+  const clearAllData = () => {
+    if (window.confirm('Are you sure you want to clear all saved data?')) {
+      localStorage.removeItem('learnbloom-view');
+      localStorage.removeItem('learnbloom-goal');
+      localStorage.removeItem('learnbloom-level');
+      localStorage.removeItem('learnbloom-duration');
+      localStorage.removeItem('learnbloom-perDay');
+      localStorage.removeItem('learnbloom-planSteps');
+      localStorage.removeItem('learnbloom-progress');
+      localStorage.removeItem('learnbloom-savedPaths');
+      
+      // Reset state
+      setView('home');
+      setGoal('');
+      setLevel('Beginner');
+      setDuration(4);
+      setPerDay(1);
+      setPlanSteps([]);
+      setProgress(0);
+      setSavedPaths([]);
+      setSelectedStep(null);
+      
+      alert('All data cleared!');
+    }
+  };
+
+  // Show data recovery notification
+  useEffect(() => {
+    const hasData = loadFromStorage('savedPaths', []).length > 0 || 
+                   loadFromStorage('goal', '') !== '';
+    
+    if (hasData && view === 'home') {
+      // Subtle notification that data was recovered
+      setTimeout(() => {
+        console.log('✅ Your previous session data has been restored');
+      }, 1000);
+    }
+  }, []);
 
   // Generate learning path by calling backend
   const generatePlan = async () => {
@@ -24,7 +117,11 @@ function App() {
     try {
       console.log('🚀 Making API call to backend...');
       
-      const response = await fetch('http://localhost:5000/api/generate-path', {
+      const API_BASE_URL = process.env.NODE_ENV === 'production' 
+        ? '/api' 
+        : 'http://localhost:5000/api';
+
+      const response = await fetch(`${API_BASE_URL}/generate-path`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -155,6 +252,9 @@ function App() {
           <div className="mb-8">
             <h1 className="text-4xl font-bold text-green-700 mb-2">🌱 LearnBloom</h1>
             <p className="text-gray-600">AI-Powered Learning Path Builder</p>
+            {(savedPaths.length > 0 || goal) && (
+              <p className="text-xs text-green-600 mt-2">✅ Previous session restored</p>
+            )}
           </div>
           
           <div className="space-y-4">
@@ -170,6 +270,11 @@ function App() {
               className="w-full py-4 bg-blue-600 text-white rounded-xl shadow-lg hover:bg-blue-700 transition-colors font-semibold text-lg"
             >
               🌿 Continue Existing Path
+              {savedPaths.length > 0 && (
+                <span className="ml-2 bg-blue-800 text-xs px-2 py-1 rounded-full">
+                  {savedPaths.length}
+                </span>
+              )}
             </button>
             
             <button 
@@ -177,11 +282,24 @@ function App() {
               className="w-full py-4 bg-purple-600 text-white rounded-xl shadow-lg hover:bg-purple-700 transition-colors font-semibold text-lg"
             >
               🌸 View Completed Paths
+              {completedPaths.length > 0 && (
+                <span className="ml-2 bg-purple-800 text-xs px-2 py-1 rounded-full">
+                  {completedPaths.length}
+                </span>
+              )}
             </button>
           </div>
           
           <div className="mt-8 text-sm text-gray-500">
             <p>Create personalized learning journeys with AI</p>
+            {(savedPaths.length > 0 || goal) && (
+              <button 
+                onClick={clearAllData}
+                className="mt-2 text-xs text-red-500 hover:text-red-700 underline"
+              >
+                Clear all saved data
+              </button>
+            )}
           </div>
         </div>
       )}
