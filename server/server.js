@@ -54,6 +54,17 @@ app.use((req, res, next) => {
 app.use(express.json());
 
 console.log('⚙️ Middleware configured');
+
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Accept, Authorization');
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  next();
+});
+
 console.log('🛣️ Setting up routes...');
 
 // Root route
