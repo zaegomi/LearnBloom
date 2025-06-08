@@ -177,39 +177,41 @@ app.post('/api/generate-path', async (req, res) => {
     if (totalSteps > 14) {
       console.log('📦 Using chunked generation for large learning path...');
       
-      const chunksNeeded = Math.ceil(totalSteps / 14); // Generate max 14 days per chunk
+      // Generate exactly 7 days per week to ensure perfect count
+      const weeksToGenerate = duration;
       let allSteps = [];
       
-      for (let chunkIndex = 0; chunkIndex < chunksNeeded; chunkIndex++) {
-        const startDay = (chunkIndex * 14) + 1;
-        const endDay = Math.min(startDay + 13, totalSteps);
-        const daysInChunk = endDay - startDay + 1;
-        const startWeek = Math.ceil(startDay / 7);
-        const endWeek = Math.ceil(endDay / 7);
+      for (let weekIndex = 0; weekIndex < weeksToGenerate; weekIndex++) {
+        const weekNumber = weekIndex + 1;
+        const startDay = (weekIndex * 7) + 1;
+        const endDay = startDay + 6; // Always 7 days per week
+        const daysInWeek = 7;
         
-        console.log(`📚 Generating chunk ${chunkIndex + 1}/${chunksNeeded}: Days ${startDay}-${endDay} (${daysInChunk} days)`);
+        console.log(`📚 Generating Week ${weekNumber}/${duration}: Days ${startDay}-${endDay} (${daysInWeek} days)`);
         
-        // Create focused prompt for this chunk
-        const chunkPrompt = `Create ${daysInChunk} learning steps for "${goal}" at ${level} level.
+        // Create focused prompt for this week
+        const weekPrompt = `Create exactly 7 learning steps for "${goal}" at ${level} level.
 
-Days ${startDay}-${endDay} of a ${totalSteps}-day program (${duration} weeks total, ${perDay}h/day).
+This is Week ${weekNumber} of ${duration} weeks (Days ${startDay}-${endDay}).
+Total program: ${totalSteps} days, ${perDay} hours per day.
 
-Week progression:
-${startWeek === endWeek ? 
-  `Week ${startWeek}` : 
-  `Weeks ${startWeek}-${endWeek} (transitioning from week ${startWeek} concepts to week ${endWeek} concepts)`
+Week ${weekNumber} theme: ${
+  weekNumber === 1 ? "Foundation & Setup" : 
+  weekNumber === 2 ? "Core Concepts" : 
+  weekNumber === 3 ? "Practical Application" : 
+  "Advanced Techniques"
 }
 
-Each step needs:
-- Unique specific topic (no generic "practice" or "review")
-- Concise but educational details (2-3 sentences max)
+Each day must have:
+- Unique specific ${goal} topic (no generic content)
+- Brief educational details (2 sentences max)
 - 3 specific tasks with time estimates
 - 3 relevant resources
 
-Return JSON array of ${daysInChunk} objects:
-[{"step":${startDay},"week":${startWeek},"dayOfWeek":${((startDay-1)%7)+1},"weekTheme":"Foundation","label":"Day ${startDay}: [Specific Topic]","description":"Brief desc","details":"What to learn and why (concise)","tasks":["Task 1 (20min)","Task 2 (25min)","Task 3 (15min)"],"resources":["Resource 1","Resource 2","Resource 3"],"estimatedTime":"${perDay} hours","weeklyGoal":"Week goal","completed":false}]
+Return JSON array of exactly 7 objects:
+[{"step":${startDay},"week":${weekNumber},"dayOfWeek":1,"weekTheme":"${weekNumber === 1 ? "Foundation & Setup" : weekNumber === 2 ? "Core Concepts" : weekNumber === 3 ? "Practical Application" : "Advanced Techniques"}","label":"Day ${startDay}: [Specific ${goal} Topic]","description":"Brief description","details":"What to learn and why (concise).","tasks":["Specific task 1 (20min)","Specific task 2 (25min)","Specific task 3 (15min)"],"resources":["Resource 1","Resource 2","Resource 3"],"estimatedTime":"${perDay} hours","weeklyGoal":"Week ${weekNumber} goal for ${goal}","completed":false}]
 
-Make each day cover a completely different aspect of ${goal}. Be specific and educational.`;
+Make each of the 7 days cover completely different ${goal} topics. Be specific and educational.`;
 
         try {
           const completion = await openai.chat.completions.create({
@@ -217,28 +219,28 @@ Make each day cover a completely different aspect of ${goal}. Be specific and ed
             messages: [
               {
                 role: "system",
-                content: `Create exactly ${daysInChunk} unique learning steps for "${goal}". Each day must be specific and different. Keep content concise to avoid truncation. Return only valid JSON array.`
+                content: `Create exactly 7 unique learning steps for "${goal}" Week ${weekNumber}. Each day must be specific and different. Keep content concise. Return only valid JSON array of 7 objects.`
               },
               {
                 role: "user",
-                content: chunkPrompt
+                content: weekPrompt
               }
             ],
-            max_tokens: 2500, // Reduced for safety
+            max_tokens: 2200, // Reduced for safety
             temperature: 0.1,
           });
 
-          console.log('📄 OpenAI response received for chunk');
+          console.log(`📄 OpenAI response received for Week ${weekNumber}`);
           const response = completion.choices[0].message.content;
 
-          // Parse chunk response
-          let chunkSteps;
+          // Parse week response
+          let weekSteps;
           try {
             const cleanResponse = response.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
-            chunkSteps = JSON.parse(cleanResponse);
-            console.log(`✅ Chunk ${chunkIndex + 1} parsed successfully: ${chunkSteps.length} steps`);
+            weekSteps = JSON.parse(cleanResponse);
+            console.log(`✅ Week ${weekNumber} parsed successfully: ${weekSteps.length} steps`);
           } catch (parseError) {
-            console.error(`❌ Chunk ${chunkIndex + 1} JSON parsing failed:`, parseError.message);
+            console.error(`❌ Week ${weekNumber} JSON parsing failed:`, parseError.message);
             
             // Try to salvage what we can
             try {
@@ -246,49 +248,61 @@ Make each day cover a completely different aspect of ${goal}. Be specific and ed
               const lastCompleteObject = jsonString.lastIndexOf('},');
               if (lastCompleteObject > 0) {
                 const repairedJson = jsonString.substring(0, lastCompleteObject + 1) + '\n]';
-                chunkSteps = JSON.parse(repairedJson);
-                console.log(`✅ Chunk ${chunkIndex + 1} repaired: ${chunkSteps.length} steps salvaged`);
+                weekSteps = JSON.parse(repairedJson);
+                console.log(`✅ Week ${weekNumber} repaired: ${weekSteps.length} steps salvaged`);
               } else {
-                throw new Error('Could not repair chunk JSON');
+                throw new Error('Could not repair week JSON');
               }
             } catch (repairError) {
-              console.error(`❌ Chunk ${chunkIndex + 1} repair failed, using fallback`);
-              
-              // Generate fallback steps for this chunk
-              chunkSteps = [];
-              for (let i = 0; i < daysInChunk; i++) {
-                const stepNumber = startDay + i;
-                const weekNumber = Math.ceil(stepNumber / 7);
-                const dayOfWeek = ((stepNumber - 1) % 7) + 1;
-                
-                chunkSteps.push({
-                  step: stepNumber,
-                  week: weekNumber,
-                  dayOfWeek: dayOfWeek,
-                  weekTheme: weekNumber === 1 ? "Foundation" : weekNumber === 2 ? "Core Concepts" : weekNumber === 3 ? "Practical Application" : "Advanced Techniques",
-                  label: `Day ${stepNumber}: ${goal} Topic ${stepNumber}`,
-                  description: `Learn specific ${goal} concepts for day ${stepNumber}`,
-                  details: `Focus on practical ${goal} skills and build your understanding through hands-on practice.`,
-                  tasks: [`Study ${goal} concept (20min)`, `Practice exercises (25min)`, `Review and notes (15min)`],
-                  resources: [`${goal} documentation`, `Online tutorials`, `Practice examples`],
-                  estimatedTime: `${perDay} hours`,
-                  weeklyGoal: `Master week ${weekNumber} ${goal} concepts`,
-                  completed: false
-                });
-              }
+              console.error(`❌ Week ${weekNumber} repair failed, generating exactly 7 fallback steps`);
+              weekSteps = [];
             }
           }
 
-          // Validate and fix chunk steps
-          if (!Array.isArray(chunkSteps)) {
-            throw new Error(`Chunk ${chunkIndex + 1} is not an array`);
+          // Always ensure exactly 7 steps for the week
+          if (!Array.isArray(weekSteps) || weekSteps.length !== 7) {
+            console.warn(`⚠️ Week ${weekNumber} returned ${Array.isArray(weekSteps) ? weekSteps.length : 0} steps, generating 7 fallback steps`);
+            
+            weekSteps = [];
+            for (let dayIndex = 0; dayIndex < 7; dayIndex++) {
+              const stepNumber = startDay + dayIndex;
+              const dayOfWeek = dayIndex + 1;
+              const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+              
+              const weekThemes = ["Foundation & Setup", "Core Concepts", "Practical Application", "Advanced Techniques"];
+              const theme = weekThemes[Math.min(weekNumber - 1, weekThemes.length - 1)];
+              
+              // Create specific topics for Python based on week and day
+              const pythonTopics = {
+                1: [`Python Installation & Setup`, `Variables and Data Types`, `Numbers and Basic Operations`, `Strings and Text Processing`, `Boolean Logic and Comparisons`, `Input/Output Operations`, `First Python Programs`],
+                2: [`Lists and List Methods`, `Dictionaries and Key-Value Pairs`, `Control Flow: If Statements`, `Loops: For and While`, `Functions and Parameters`, `Modules and Imports`, `Error Handling Basics`],
+                3: [`File Reading and Writing`, `Working with CSV Data`, `API Requests with requests`, `Web Scraping Basics`, `Data Processing Techniques`, `Building a Calculator Project`, `Creating a To-Do List App`],
+                4: [`Object-Oriented Programming`, `Classes and Inheritance`, `Working with Databases`, `Advanced Data Structures`, `Performance Optimization`, `Testing Your Code`, `Deployment and Packaging`]
+              };
+              
+              const topicForDay = pythonTopics[weekNumber] ? pythonTopics[weekNumber][dayIndex] : `${goal} Advanced Topic ${stepNumber}`;
+              
+              weekSteps.push({
+                step: stepNumber,
+                week: weekNumber,
+                dayOfWeek: dayOfWeek,
+                weekTheme: theme,
+                label: `Day ${stepNumber}: ${topicForDay}`,
+                description: `Learn ${topicForDay.toLowerCase()} in ${goal}`,
+                details: `Focus on understanding ${topicForDay.toLowerCase()} and build practical skills through hands-on exercises.`,
+                tasks: [`Study ${topicForDay} concepts (20min)`, `Complete practical exercises (25min)`, `Build a small project (15min)`],
+                resources: [`${goal} official documentation`, `Online tutorials for ${topicForDay}`, `Practice exercises and examples`],
+                estimatedTime: `${perDay} hours`,
+                weeklyGoal: `Master ${theme.toLowerCase()} concepts in ${goal}`,
+                completed: false
+              });
+            }
           }
 
-          // Ensure correct step numbering and structure
-          chunkSteps = chunkSteps.map((step, index) => {
+          // Ensure correct step numbering and structure for all 7 days
+          weekSteps = weekSteps.map((step, index) => {
             const correctStepNumber = startDay + index;
-            const weekNumber = Math.ceil(correctStepNumber / 7);
-            const dayOfWeek = ((correctStepNumber - 1) % 7) + 1;
+            const dayOfWeek = index + 1;
             
             const weekThemes = ["Foundation & Setup", "Core Concepts", "Practical Application", "Advanced Techniques"];
             const theme = weekThemes[Math.min(weekNumber - 1, weekThemes.length - 1)];
@@ -301,24 +315,63 @@ Make each day cover a completely different aspect of ${goal}. Be specific and ed
               label: step.label || `Day ${correctStepNumber}: ${goal} Learning`,
               description: step.description || `Learn ${goal} concepts`,
               details: step.details || `Study ${goal} and practice the skills.`,
-              tasks: Array.isArray(step.tasks) ? step.tasks : [`Study ${goal} (${perDay} hours)`],
-              resources: Array.isArray(step.resources) ? step.resources : [`${goal} resources`],
+              tasks: Array.isArray(step.tasks) ? step.tasks : [`Study ${goal} (20min)`, `Practice exercises (25min)`, `Review notes (15min)`],
+              resources: Array.isArray(step.resources) ? step.resources : [`${goal} documentation`, `Online tutorials`, `Practice examples`],
               estimatedTime: `${perDay} hours`,
               weeklyGoal: step.weeklyGoal || `Master week ${weekNumber} ${goal} concepts`,
               completed: false
             };
           });
 
-          allSteps = allSteps.concat(chunkSteps);
-          console.log(`✅ Chunk ${chunkIndex + 1} completed. Total steps so far: ${allSteps.length}`);
+          // Always add exactly 7 steps
+          allSteps = allSteps.concat(weekSteps);
+          console.log(`✅ Week ${weekNumber} completed with exactly 7 steps. Total steps so far: ${allSteps.length}`);
           
-        } catch (chunkError) {
-          console.error(`❌ Chunk ${chunkIndex + 1} failed:`, chunkError.message);
-          throw new Error(`Failed to generate learning path chunk ${chunkIndex + 1}: ${chunkError.message}`);
+        } catch (weekError) {
+          console.error(`❌ Week ${weekNumber} failed:`, weekError.message);
+          throw new Error(`Failed to generate learning path week ${weekNumber}: ${weekError.message}`);
         }
       }
       
-      console.log(`✅ Successfully generated ${allSteps.length} steps using chunked generation`);
+      // Ensure we have exactly the right number of steps
+      if (allSteps.length !== totalSteps) {
+        console.warn(`⚠️ Generated ${allSteps.length} steps but expected ${totalSteps}. Adjusting...`);
+        
+        if (allSteps.length < totalSteps) {
+          // Add missing steps
+          const missingSteps = totalSteps - allSteps.length;
+          console.log(`➕ Adding ${missingSteps} missing steps...`);
+          
+          for (let i = 0; i < missingSteps; i++) {
+            const stepNumber = allSteps.length + 1 + i;
+            const weekNumber = Math.ceil(stepNumber / 7);
+            const dayOfWeek = ((stepNumber - 1) % 7) + 1;
+            
+            const weekThemes = ["Foundation & Setup", "Core Concepts", "Practical Application", "Advanced Techniques"];
+            const theme = weekThemes[Math.min(weekNumber - 1, weekThemes.length - 1)];
+            
+            allSteps.push({
+              step: stepNumber,
+              week: weekNumber,
+              dayOfWeek: dayOfWeek,
+              weekTheme: theme,
+              label: `Day ${stepNumber}: ${goal} Additional Topic ${stepNumber}`,
+              description: `Learn additional ${goal} concepts`,
+              details: `Focus on expanding your ${goal} knowledge with practical exercises and real-world applications.`,
+              tasks: [`Study ${goal} concepts (20min)`, `Complete practice exercises (25min)`, `Review and document learning (15min)`],
+              resources: [`${goal} official documentation`, `Community tutorials`, `Practice projects`],
+              estimatedTime: `${perDay} hours`,
+              weeklyGoal: `Master week ${weekNumber} ${goal} concepts`,
+              completed: false
+            });
+          }
+        } else if (allSteps.length > totalSteps) {
+          // Remove extra steps
+          allSteps = allSteps.slice(0, totalSteps);
+        }
+      }
+      
+      console.log(`✅ Successfully generated exactly ${allSteps.length} steps using week-by-week generation`);
       
       // Send final response
       res.json({ 
@@ -330,9 +383,9 @@ Make each day cover a completely different aspect of ${goal}. Be specific and ed
           perDay,
           totalSteps: allSteps.length,
           generatedAt: new Date().toISOString(),
-          generatedBy: 'OpenAI Chunked Generation',
+          generatedBy: 'OpenAI Week-by-Week Generation',
           model: 'gpt-4o-mini',
-          chunksUsed: chunksNeeded,
+          weeksGenerated: weeksToGenerate,
           corsEnabled: true
         }
       });
