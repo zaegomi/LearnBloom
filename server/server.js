@@ -279,65 +279,94 @@ Return ONLY the JSON array with exactly ${totalSteps} detailed, unique steps. Do
       plan = JSON.parse(cleanedResponse);
       console.log('✅ JSON parsed successfully (direct)');
     } catch (parseError) {
-      console.warn('⚠️ Direct JSON parse failed, trying extraction strategies...');
+      console.warn('⚠️ Direct JSON parse failed:', parseError.message);
+      console.log('📄 Raw response length:', response.length);
+      console.log('📄 First 500 chars:', response.substring(0, 500));
+      console.log('📄 Last 500 chars:', response.substring(Math.max(0, response.length - 500)));
       
       try {
-        // Strategy 2: Remove markdown code blocks
-        let jsonString = response;
+        // Strategy 2: Check if response is truncated and try to fix it
+        let jsonString = response.trim();
         
-        // Remove ```json and ``` markdown blocks
+        // Remove any markdown code blocks if present
         jsonString = jsonString.replace(/```json\s*/g, '');
         jsonString = jsonString.replace(/```\s*/g, '');
-        
-        // Remove any leading/trailing whitespace
         jsonString = jsonString.trim();
         
-        // Try parsing the cleaned string
-        plan = JSON.parse(jsonString);
-        console.log('✅ JSON parsed successfully (markdown removed)');
-        
-      } catch (markdownError) {
-        console.warn('⚠️ Markdown removal failed, trying regex extraction...');
-        
-        try {
-          // Strategy 3: Extract JSON array using regex
-          const jsonMatch = response.match(/\[[\s\S]*\]/);
-          if (jsonMatch) {
-            let jsonString = jsonMatch[0];
-            
-            // Clean up common JSON issues
-            jsonString = jsonString.replace(/,\s*([}\]])/g, '$1'); // Remove trailing commas
-            jsonString = jsonString.replace(/'/g, '"'); // Replace single quotes with double quotes
-            jsonString = jsonString.replace(/"/g, '"').replace(/"/g, '"'); // Fix smart quotes
-            
-            // Try to complete truncated JSON
+        // Check if JSON is complete
+        if (!jsonString.endsWith(']')) {
+          console.log('⚠️ JSON appears truncated, attempting to complete it...');
+          
+          // Find the last complete object
+          const lastCompleteObject = jsonString.lastIndexOf('},');
+          if (lastCompleteObject > 0) {
+            // Truncate to last complete object and close the array
+            jsonString = jsonString.substring(0, lastCompleteObject + 1) + '\n]';
+            console.log('✅ Truncated JSON to last complete object');
+          } else {
+            // If no complete objects found, try to complete the current one
             const openBraces = (jsonString.match(/\{/g) || []).length;
             const closeBraces = (jsonString.match(/\}/g) || []).length;
-            const openBrackets = (jsonString.match(/\[/g) || []).length;
-            const closeBrackets = (jsonString.match(/\]/g) || []).length;
             
             // Add missing closing braces
             for (let i = 0; i < openBraces - closeBraces; i++) {
               jsonString += '}';
             }
             
-            // Add missing closing brackets
-            for (let i = 0; i < openBrackets - closeBrackets; i++) {
+            // Ensure array is closed
+            if (!jsonString.includes(']')) {
               jsonString += ']';
             }
             
-            plan = JSON.parse(jsonString);
-            console.log('✅ JSON extracted and fixed successfully');
+            console.log('✅ Added missing braces and brackets');
+          }
+        }
+        
+        // Clean up any formatting issues
+        jsonString = jsonString.replace(/,\s*([}\]])/g, '$1'); // Remove trailing commas
+        jsonString = jsonString.replace(/'/g, '"'); // Replace single quotes
+        jsonString = jsonString.replace(/"/g, '"').replace(/"/g, '"'); // Fix smart quotes
+        
+        plan = JSON.parse(jsonString);
+        console.log('✅ JSON parsed successfully after fixing truncation');
+        
+      } catch (fixError) {
+        console.warn('⚠️ JSON fix failed:', fixError.message);
+        
+        try {
+          // Strategy 3: Extract only complete objects
+          const objectMatches = response.match(/\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/g);
+          if (objectMatches && objectMatches.length > 0) {
+            console.log(`📊 Found ${objectMatches.length} complete objects, attempting to create array...`);
+            
+            // Try to parse each object and build array
+            const validObjects = [];
+            for (const objStr of objectMatches) {
+              try {
+                const obj = JSON.parse(objStr);
+                validObjects.push(obj);
+              } catch (objError) {
+                console.warn('⚠️ Skipping invalid object:', objStr.substring(0, 100));
+              }
+            }
+            
+            if (validObjects.length > 0) {
+              plan = validObjects;
+              console.log(`✅ Successfully parsed ${validObjects.length} objects from response`);
+            } else {
+              throw new Error('No valid objects found in response');
+            }
           } else {
-            throw new Error('No JSON array found in response');
+            throw new Error('No parseable JSON objects found in response');
           }
         } catch (extractError) {
-          console.error('❌ Could not extract or fix JSON from response');
-          console.error('Parse error:', parseError.message);
+          console.error('❌ All JSON parsing strategies failed');
+          console.error('Original parse error:', parseError.message);
+          console.error('Fix error:', fixError.message);
           console.error('Extract error:', extractError.message);
-          console.error('Markdown error:', markdownError.message);
-          console.error('Response sample:', response.substring(0, 500));
-          throw new Error(`Invalid JSON response from OpenAI. Response starts with: ${response.substring(0, 100)}`);
+          console.error('Response preview (first 1000 chars):', response.substring(0, 1000));
+          
+          throw new Error(`Could not parse OpenAI response as JSON. Response starts with: ${response.substring(0, 200)}`);
         }
       }
     }
