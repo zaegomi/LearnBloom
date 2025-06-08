@@ -174,6 +174,55 @@ app.post('/api/generate-path', async (req, res) => {
     const totalSteps = duration * 7; // 7 days per week
     console.log(`🎯 Generating ${totalSteps} detailed steps for "${goal}" (${level} level) - ${duration} weeks × 7 days = ${totalSteps} days`);
 
+    // TEMPORARY: Limit to prevent timeouts while testing
+    if (totalSteps > 7) {
+      console.log('⚠️ TEMPORARY: Limiting to 7 days to prevent timeout');
+      const limitedSteps = 7;
+      
+      const prompt = `Create exactly 7 learning steps for "${goal}" at ${level} level.
+Duration: 1 week, ${perDay} hours per day.
+
+Return JSON array of 7 objects:
+[{"step":1,"week":1,"dayOfWeek":1,"weekTheme":"Foundation","label":"Day 1: [Topic]","description":"Brief","details":"What to learn","tasks":["Task 1 (20min)","Task 2 (25min)","Task 3 (15min)"],"resources":["Resource 1","Resource 2","Resource 3"],"estimatedTime":"${perDay} hours","weeklyGoal":"Week goal","completed":false}]
+
+Make each day unique and educational.`;
+
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [{ role: "user", content: prompt }],
+        max_tokens: 2000,
+        temperature: 0.1,
+      });
+
+      const response = completion.choices[0].message.content;
+      let plan;
+      
+      try {
+        const cleanResponse = response.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+        plan = JSON.parse(cleanResponse);
+      } catch (parseError) {
+        throw new Error(`JSON parsing failed: ${parseError.message}`);
+      }
+
+      if (!Array.isArray(plan) || plan.length === 0) {
+        throw new Error('Invalid learning path generated');
+      }
+
+      console.log(`✅ Generated ${plan.length} steps (LIMITED FOR TESTING)`);
+
+      return res.json({ 
+        plan,
+        metadata: {
+          goal, level, duration, perDay,
+          totalSteps: plan.length,
+          generatedAt: new Date().toISOString(),
+          generatedBy: 'OpenAI Limited Test',
+          model: 'gpt-4o-mini',
+          note: 'Limited to 7 days for timeout testing'
+        }
+      });
+    }
+
     // For longer paths (3+ weeks), generate in chunks to avoid token limits
     if (totalSteps > 14) {
       console.log('📦 Using chunked generation for large learning path...');
