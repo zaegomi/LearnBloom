@@ -69,8 +69,13 @@ app.get('/', (req, res) => {
   });
 });
 
-// Health check
+// Health check with CORS
 app.get('/health', (req, res) => {
+  // Add CORS headers directly
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Accept, Authorization, X-Requested-With');
+  
   res.json({ 
     status: 'healthy',
     uptime: process.uptime(),
@@ -80,8 +85,13 @@ app.get('/health', (req, res) => {
   });
 });
 
-// API test
+// API test with CORS
 app.get('/api/test', (req, res) => {
+  // Add CORS headers directly
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Accept, Authorization, X-Requested-With');
+  
   res.json({ 
     message: 'API working perfectly!',
     hasApiKey: !!process.env.OPENAI_API_KEY,
@@ -127,8 +137,13 @@ app.get('/api/test-openai', async (req, res) => {
   }
 });
 
-// Generate learning path - OpenAI ONLY
+// Generate path with CORS
 app.post('/api/generate-path', async (req, res) => {
+  // Add CORS headers directly
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Accept, Authorization, X-Requested-With');
+  
   console.log('📝 Learning path generation requested (OpenAI only)');
   console.log('📊 Request data:', req.body);
 
