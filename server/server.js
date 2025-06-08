@@ -11,15 +11,11 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 // Middleware
-
 app.use(cors({
-  origin: [
-    'http://localhost:3000',
-    'https://learn-bloom-client.vercel.app'
-  ],
+  origin: true,  // Allow all origins temporarily
   credentials: true,
-  methods: ['GET', 'POST', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Accept'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Accept', 'Authorization', 'X-Requested-With'],
   optionsSuccessStatus: 200
 }));
 app.use(express.json());
