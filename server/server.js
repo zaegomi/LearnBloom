@@ -12,23 +12,22 @@ const PORT = process.env.PORT || 5000;
 
 // Middleware
 // Handle preflight requests first
-app.options('*', (req, res) => {
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Accept, Authorization, X-Requested-With');
-  res.header('Access-Control-Allow-Credentials', 'true');
-  console.log('✅ Handling OPTIONS (preflight) request');
-  res.sendStatus(200);
-});
-
-// Add CORS headers to all responsess
 app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Accept, Authorization, X-Requested-With');
-  res.header('Access-Control-Allow-Credentials', 'true');
+  // Set CORS headers for all requests
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Accept, Authorization, X-Requested-With');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Max-Age', '86400'); // 24 hours
   
-  console.log(`📡 ${req.method} ${req.path} from ${req.headers.origin}`);
+  console.log(`🔄 ${req.method} ${req.url} from Origin: ${req.headers.origin || 'No Origin'}`);
+  
+  // Handle preflight OPTIONS requests
+  if (req.method === 'OPTIONS') {
+    console.log('🚀 Preflight OPTIONS request handled');
+    return res.status(200).end();
+  }
+  
   next();
 });
 
