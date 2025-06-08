@@ -18,6 +18,23 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Accept', 'Authorization', 'X-Requested-With'],
   optionsSuccessStatus: 200
 }));
+
+// Manual CORS headers as backup
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Accept, Authorization, X-Requested-With');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  
+  console.log(`📡 ${req.method} ${req.path} from ${req.headers.origin}`);
+  
+  if (req.method === 'OPTIONS') {
+    console.log('✅ Handling OPTIONS request');
+    return res.sendStatus(200);
+  }
+  next();
+});
+
 app.use(express.json());
 
 console.log('⚙️ Middleware configured');
