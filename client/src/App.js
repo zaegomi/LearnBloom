@@ -118,17 +118,17 @@ function App() {
       console.log('🚀 Making API call to backend...');
       
       const API_BASE_URL = process.env.NODE_ENV === 'production' 
-        ? '/api' 
-        : 'http://localhost:5000/api';
+  ? '/api'  // Vercel will handle routing to your backend
+  : 'http://localhost:5000/api';
 
-      const response = await fetch(`${API_BASE_URL}/generate-path`, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        },
-        body: JSON.stringify({ goal, level, duration, perDay })
-      });
+const response = await fetch(`${API_BASE_URL}/generate-path`, {
+  method: 'POST',
+  headers: { 
+    'Content-Type': 'application/json',
+    'Accept': 'application/json'
+  },
+  body: JSON.stringify({ goal, level, duration, perDay })
+});
       
       console.log('📡 Response status:', response.status);
       

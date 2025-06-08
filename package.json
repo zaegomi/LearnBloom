@@ -1,0 +1,17 @@
+{
+  "name": "learnbloom-ai",
+  "version": "1.0.0",
+  "description": "AI-powered learning path builder",
+  "scripts": {
+    "build": "cd client && npm install && npm run build",
+    "start": "cd server && npm start",
+    "dev": "concurrently \"cd server && npm run dev\" \"cd client && npm start\"",
+    "install-deps": "cd client && npm install && cd ../server && npm install"
+  },
+  "keywords": ["learning", "ai", "education", "react", "nodejs"],
+  "author": "Your Name",
+  "license": "MIT",
+  "devDependencies": {
+    "concurrently": "^7.6.0"
+  }
+}
