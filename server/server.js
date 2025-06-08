@@ -12,9 +12,10 @@ const PORT = process.env.PORT || 5000;
 
 // Middleware
 app.use(cors({
-  origin: process.env.NODE_ENV === 'production' 
-    ? true  // Allow all origins in production (Vercel handles this)
-    : 'http://localhost:3000',
+  origin: [
+    'http://localhost:3000',  // Local development
+    'learn-bloom-client.vercel.app'  // ← Replace with your actual frontend URL
+  ],
   credentials: true
 }));
 app.use(express.json());

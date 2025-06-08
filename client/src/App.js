@@ -108,27 +108,27 @@ function App() {
 
   // Generate learning path by calling backend
   const generatePlan = async () => {
-    if (!goal.trim()) {
-      alert('Please enter a learning goal');
-      return;
-    }
+  if (!goal.trim()) {
+    alert('Please enter a learning goal');
+    return;
+  }
 
-    setLoading(true);
-    try {
-      console.log('🚀 Making API call to backend...');
+  setLoading(true);
+  try {
+    console.log('🚀 Making API call to backend...');
       
       const API_BASE_URL = process.env.NODE_ENV === 'production' 
-  ? '/api'  // Vercel will handle routing to your backend
-  : 'http://localhost:5000/api';
+      ? 'learn-bloom.vercel.app'  // ← Replace with your actual backend URL
+      : 'http://localhost:5000';
 
-const response = await fetch(`${API_BASE_URL}/generate-path`, {
-  method: 'POST',
-  headers: { 
-    'Content-Type': 'application/json',
-    'Accept': 'application/json'
-  },
-  body: JSON.stringify({ goal, level, duration, perDay })
-});
+const response = await fetch(`${API_BASE_URL}/api/generate-path`, {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify({ goal, level, duration, perDay })
+    });
       
       console.log('📡 Response status:', response.status);
       
@@ -160,12 +160,12 @@ const response = await fetch(`${API_BASE_URL}/generate-path`, {
       setSelectedStep(null);
       setView('path');
     } catch (err) {
-      console.error('❌ Error details:', err);
-      alert(`Failed to generate plan: ${err.message}`);
-    } finally {
-      setLoading(false);
-    }
-  };
+    console.error('❌ Error details:', err);
+    alert(`Failed to generate plan: ${err.message}`);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const completeStep = (stepNumber) => {
     const updatedSteps = planSteps.map(step => 
