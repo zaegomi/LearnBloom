@@ -54,7 +54,6 @@ app.use((req, res, next) => {
 app.use(express.json());
 
 console.log('⚙️ Middleware configured');
-
 console.log('🛣️ Setting up routes...');
 
 // Root route
@@ -111,7 +110,7 @@ app.get('/api/test-openai', async (req, res) => {
 
   try {
     const completion = await openai.chat.completions.create({
-      model: "gpt-3.5-turbo",
+      model: "gpt-4o-mini",
       messages: [{ role: "user", content: "Say hello in one word" }],
       max_tokens: 5,
     });
@@ -134,9 +133,9 @@ app.get('/api/test-openai', async (req, res) => {
   }
 });
 
-// Generate learning path with dynamic curriculum
+// Generate learning path with optimized token usage
 app.post('/api/generate-path', async (req, res) => {
-  console.log('📝 Learning path generation requested (Dynamic Curriculum)');
+  console.log('📝 Learning path generation requested (Optimized)');
   console.log('📊 Request data:', req.body);
   
   addCorsHeaders(res);
@@ -174,329 +173,301 @@ app.post('/api/generate-path', async (req, res) => {
     const totalSteps = duration * 7; // 7 days per week
     console.log(`🎯 Generating ${totalSteps} detailed steps for "${goal}" (${level} level) - ${duration} weeks × 7 days = ${totalSteps} days`);
 
-    // Step 1: Generate curriculum outline for ANY subject
-    const generateCurriculumOutline = async (goal, level, totalSteps) => {
-      console.log(`📚 Generating curriculum outline for ${goal}...`);
+    // For longer paths (3+ weeks), generate in chunks to avoid token limits
+    if (totalSteps > 14) {
+      console.log('📦 Using chunked generation for large learning path...');
       
-      const outlinePrompt = `Create a detailed curriculum outline for learning "${goal}" at ${level} level.
-
-Generate exactly ${totalSteps} unique daily topics that cover all aspects of ${goal}. Each topic must be:
-- Completely different from all other topics
-- Specific and actionable (not generic)
-- Progressive in difficulty
-- Focused on one particular skill/concept/tool
-
-Structure the topics in logical progression:
-- Days 1-7: Foundation and basics
-- Days 8-14: Core concepts and skills
-- Days 15-21: Practical application and projects
-- Days 22-28: Advanced techniques and mastery
-
-For ${goal} specifically, think about:
-- What tools/software are used?
-- What are the fundamental concepts?
-- What skills need to be developed?
-- What are the advanced techniques?
-- What are real-world applications?
-
-Return exactly ${totalSteps} specific topics as a JSON array of strings:
-[
-  "Specific topic 1 for ${goal}",
-  "Specific topic 2 for ${goal}",
-  "Specific topic 3 for ${goal}"
-]
-
-Each topic should be detailed enough to fill ${perDay} hours of focused learning. Make every topic unique and valuable for mastering ${goal}.`;
-
-      try {
-        const outlineCompletion = await openai.chat.completions.create({
-          model: "gpt-4o-mini",
-          messages: [
-            {
-              role: "system",
-              content: `You are a curriculum planning expert. Generate ${totalSteps} completely unique learning topics for ${goal}. Each topic must be specific and different. Think about all the different aspects, tools, techniques, and skills involved in ${goal}. Return only JSON array of topic strings.`
-            },
-            {
-              role: "user",
-              content: outlinePrompt
-            }
-          ],
-          max_tokens: 2000,
-          temperature: 0.3,
-        });
-
-        const outlineResponse = outlineCompletion.choices[0].message.content.trim();
-        
-        // Parse the curriculum outline
-        let topics;
-        try {
-          const cleanResponse = outlineResponse.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
-          topics = JSON.parse(cleanResponse);
-          
-          if (!Array.isArray(topics) || topics.length === 0) {
-            throw new Error('Invalid topics format');
-          }
-          
-          console.log(`✅ Generated ${topics.length} unique curriculum topics`);
-          console.log('📋 Sample topics:', topics.slice(0, 3).join(', '), '...');
-          
-          return topics.slice(0, totalSteps);
-          
-        } catch (parseError) {
-          console.warn('⚠️ Could not parse curriculum outline, using fallback');
-          
-          // Fallback: Generate structured topics for any subject
-          const fallbackTopics = [];
-          const patterns = [
-            'introduction and setup', 'basic concepts', 'fundamental principles', 'core techniques',
-            'practical exercises', 'hands-on projects', 'problem solving', 'best practices',
-            'advanced concepts', 'specialized tools', 'optimization', 'integration',
-            'real-world applications', 'case studies', 'troubleshooting', 'performance',
-            'professional skills', 'industry standards', 'collaboration', 'deployment',
-            'monitoring', 'maintenance', 'scaling', 'security', 'testing', 'documentation',
-            'advanced projects', 'mastery techniques'
-          ];
-          
-          for (let i = 0; i < totalSteps; i++) {
-            const pattern = patterns[i % patterns.length];
-            const variation = Math.floor(i / patterns.length) + 1;
-            fallbackTopics.push(`${goal} ${pattern}${variation > 1 ? ` ${variation}` : ''}`);
-          }
-          
-          return fallbackTopics;
-        }
-        
-      } catch (error) {
-        console.warn('⚠️ Curriculum generation failed, using structured fallback');
-        
-        // Emergency fallback
-        const emergencyTopics = [];
-        for (let i = 1; i <= totalSteps; i++) {
-          const weekNum = Math.ceil(i / 7);
-          if (weekNum === 1) {
-            emergencyTopics.push(`${goal} fundamentals - Day ${i}`);
-          } else if (weekNum === 2) {
-            emergencyTopics.push(`${goal} core concepts - Day ${i}`);
-          } else if (weekNum === 3) {
-            emergencyTopics.push(`${goal} practical application - Day ${i}`);
-          } else {
-            emergencyTopics.push(`${goal} advanced techniques - Day ${i}`);
-          }
-        }
-        
-        return emergencyTopics;
-      }
-    };
-
-    // Step 2: Generate the curriculum outline
-    const curriculumTopics = await generateCurriculumOutline(goal, level, totalSteps);
-
-    // Step 3: Create simplified prompt to avoid truncation
-    const prompt = `Create ${totalSteps} learning steps for "${goal}" (${level} level, ${perDay}h/day).
-
-Topics to cover in order:
-${curriculumTopics.map((topic, index) => `${index + 1}. ${topic}`).join('\n')}
-
-Return JSON array with exactly ${totalSteps} objects:
-[
-  {
-    "step": 1,
-    "week": 1,
-    "dayOfWeek": 1,
-    "weekTheme": "Foundation",
-    "label": "Day 1: [topic 1]",
-    "description": "Brief description",
-    "details": "What to learn and why",
-    "tasks": ["Task 1 (20min)", "Task 2 (30min)", "Task 3 (25min)"],
-    "resources": ["Resource 1", "Resource 2", "Resource 3"],
-    "estimatedTime": "${perDay} hours",
-    "weeklyGoal": "Week 1 goal",
-    "completed": false
-  }
-]
-
-Each step must cover its assigned topic. Keep content concise but specific.`;
-
-    console.log('🤖 Calling OpenAI API to create detailed curriculum...');
-
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
-        {
-          role: "system",
-          content: `You are an expert curriculum designer. Create exactly ${totalSteps} concise learning steps for "${goal}". Each day must cover its assigned topic from the curriculum. Keep all content brief but specific to avoid response truncation. Return only a valid JSON array.`
-        },
-        {
-          role: "user",
-          content: prompt
-        }
-      ],
-      max_tokens: Math.min(4000, Math.max(1500, totalSteps * 100)), // Dynamic token limit based on steps
-      temperature: 0.1,
-    });
-
-    console.log('📄 OpenAI response received');
-    const response = completion.choices[0].message.content;
-
-    // Enhanced JSON parsing with truncation handling
-    let plan;
-    try {
-      const cleanResponse = response.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
-      plan = JSON.parse(cleanResponse);
-      console.log('✅ JSON parsed successfully');
-    } catch (parseError) {
-      console.error('❌ JSON parsing failed:', parseError.message);
-      console.log('📊 Response length:', response.length);
-      console.log('📄 Response preview:', response.substring(0, 300));
-      console.log('📄 Response ending:', response.substring(Math.max(0, response.length - 300)));
+      const chunksNeeded = Math.ceil(totalSteps / 14); // Generate max 14 days per chunk
+      let allSteps = [];
       
-      try {
-        // Strategy 1: Try to extract and fix truncated JSON
-        let jsonString = response.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+      for (let chunkIndex = 0; chunkIndex < chunksNeeded; chunkIndex++) {
+        const startDay = (chunkIndex * 14) + 1;
+        const endDay = Math.min(startDay + 13, totalSteps);
+        const daysInChunk = endDay - startDay + 1;
+        const startWeek = Math.ceil(startDay / 7);
+        const endWeek = Math.ceil(endDay / 7);
         
-        // If JSON is truncated, find the last complete object
-        if (!jsonString.endsWith(']') || parseError.message.includes('Unterminated')) {
-          console.log('⚠️ JSON appears truncated, attempting to salvage...');
-          
-          // Find the last complete object
-          const lastCompleteObject = jsonString.lastIndexOf('},');
-          if (lastCompleteObject > 0) {
-            // Cut off at last complete object and close the array
-            jsonString = jsonString.substring(0, lastCompleteObject + 1) + '\n]';
-            console.log('✅ Truncated to last complete object');
-          } else {
-            // Try to find any complete objects
-            const objects = [];
-            const objectPattern = /\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/g;
-            let match;
-            while ((match = objectPattern.exec(response)) !== null) {
-              try {
-                const obj = JSON.parse(match[0]);
-                objects.push(obj);
-              } catch (objError) {
-                // Skip invalid objects
-              }
-            }
-            
-            if (objects.length > 0) {
-              plan = objects;
-              console.log(`✅ Extracted ${objects.length} valid objects from truncated response`);
-            } else {
-              throw new Error('No valid objects found in truncated response');
-            }
-          }
-        }
+        console.log(`📚 Generating chunk ${chunkIndex + 1}/${chunksNeeded}: Days ${startDay}-${endDay} (${daysInChunk} days)`);
         
-        // If we modified jsonString, try parsing it
-        if (!plan) {
-          plan = JSON.parse(jsonString);
-          console.log('✅ Successfully parsed repaired JSON');
-        }
-        
-      } catch (repairError) {
-        console.error('❌ JSON repair failed:', repairError.message);
-        
-        // Strategy 2: Request a shorter response with fewer days
-        console.log('🔄 Requesting shorter response due to truncation...');
-        
-        const shorterSteps = Math.min(14, totalSteps); // Limit to 2 weeks max for retry
-        const shorterPrompt = `Create exactly ${shorterSteps} learning steps for "${goal}" at ${level} level.
+        // Create focused prompt for this chunk
+        const chunkPrompt = `Create ${daysInChunk} learning steps for "${goal}" at ${level} level.
 
-Use these topics (first ${shorterSteps} only):
-${curriculumTopics.slice(0, shorterSteps).map((topic, index) => `Day ${index + 1}: ${topic}`).join('\n')}
+Days ${startDay}-${endDay} of a ${totalSteps}-day program (${duration} weeks total, ${perDay}h/day).
 
-Return exactly ${shorterSteps} steps as a valid JSON array. Keep responses concise to avoid truncation.`;
+Week progression:
+${startWeek === endWeek ? 
+  `Week ${startWeek}` : 
+  `Weeks ${startWeek}-${endWeek} (transitioning from week ${startWeek} concepts to week ${endWeek} concepts)`
+}
+
+Each step needs:
+- Unique specific topic (no generic "practice" or "review")
+- Concise but educational details (2-3 sentences max)
+- 3 specific tasks with time estimates
+- 3 relevant resources
+
+Return JSON array of ${daysInChunk} objects:
+[{"step":${startDay},"week":${startWeek},"dayOfWeek":${((startDay-1)%7)+1},"weekTheme":"Foundation","label":"Day ${startDay}: [Specific Topic]","description":"Brief desc","details":"What to learn and why (concise)","tasks":["Task 1 (20min)","Task 2 (25min)","Task 3 (15min)"],"resources":["Resource 1","Resource 2","Resource 3"],"estimatedTime":"${perDay} hours","weeklyGoal":"Week goal","completed":false}]
+
+Make each day cover a completely different aspect of ${goal}. Be specific and educational.`;
 
         try {
-          const shorterCompletion = await openai.chat.completions.create({
+          const completion = await openai.chat.completions.create({
             model: "gpt-4o-mini",
             messages: [
               {
                 role: "system",
-                content: `Create exactly ${shorterSteps} concise learning steps. Keep all content brief to avoid response truncation. Return only valid JSON array.`
+                content: `Create exactly ${daysInChunk} unique learning steps for "${goal}". Each day must be specific and different. Keep content concise to avoid truncation. Return only valid JSON array.`
               },
               {
                 role: "user",
-                content: shorterPrompt
+                content: chunkPrompt
               }
             ],
-            max_tokens: 2000, // Reduced token limit
+            max_tokens: 2500, // Reduced for safety
             temperature: 0.1,
           });
 
-          const shorterResponse = shorterCompletion.choices[0].message.content.trim();
-          plan = JSON.parse(shorterResponse.replace(/```json\s*/g, '').replace(/```\s*/g, ''));
-          console.log(`✅ Successfully generated ${plan.length} steps with shorter response`);
+          console.log('📄 OpenAI response received for chunk');
+          const response = completion.choices[0].message.content;
+
+          // Parse chunk response
+          let chunkSteps;
+          try {
+            const cleanResponse = response.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+            chunkSteps = JSON.parse(cleanResponse);
+            console.log(`✅ Chunk ${chunkIndex + 1} parsed successfully: ${chunkSteps.length} steps`);
+          } catch (parseError) {
+            console.error(`❌ Chunk ${chunkIndex + 1} JSON parsing failed:`, parseError.message);
+            
+            // Try to salvage what we can
+            try {
+              const jsonString = response.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+              const lastCompleteObject = jsonString.lastIndexOf('},');
+              if (lastCompleteObject > 0) {
+                const repairedJson = jsonString.substring(0, lastCompleteObject + 1) + '\n]';
+                chunkSteps = JSON.parse(repairedJson);
+                console.log(`✅ Chunk ${chunkIndex + 1} repaired: ${chunkSteps.length} steps salvaged`);
+              } else {
+                throw new Error('Could not repair chunk JSON');
+              }
+            } catch (repairError) {
+              console.error(`❌ Chunk ${chunkIndex + 1} repair failed, using fallback`);
+              
+              // Generate fallback steps for this chunk
+              chunkSteps = [];
+              for (let i = 0; i < daysInChunk; i++) {
+                const stepNumber = startDay + i;
+                const weekNumber = Math.ceil(stepNumber / 7);
+                const dayOfWeek = ((stepNumber - 1) % 7) + 1;
+                
+                chunkSteps.push({
+                  step: stepNumber,
+                  week: weekNumber,
+                  dayOfWeek: dayOfWeek,
+                  weekTheme: weekNumber === 1 ? "Foundation" : weekNumber === 2 ? "Core Concepts" : weekNumber === 3 ? "Practical Application" : "Advanced Techniques",
+                  label: `Day ${stepNumber}: ${goal} Topic ${stepNumber}`,
+                  description: `Learn specific ${goal} concepts for day ${stepNumber}`,
+                  details: `Focus on practical ${goal} skills and build your understanding through hands-on practice.`,
+                  tasks: [`Study ${goal} concept (20min)`, `Practice exercises (25min)`, `Review and notes (15min)`],
+                  resources: [`${goal} documentation`, `Online tutorials`, `Practice examples`],
+                  estimatedTime: `${perDay} hours`,
+                  weeklyGoal: `Master week ${weekNumber} ${goal} concepts`,
+                  completed: false
+                });
+              }
+            }
+          }
+
+          // Validate and fix chunk steps
+          if (!Array.isArray(chunkSteps)) {
+            throw new Error(`Chunk ${chunkIndex + 1} is not an array`);
+          }
+
+          // Ensure correct step numbering and structure
+          chunkSteps = chunkSteps.map((step, index) => {
+            const correctStepNumber = startDay + index;
+            const weekNumber = Math.ceil(correctStepNumber / 7);
+            const dayOfWeek = ((correctStepNumber - 1) % 7) + 1;
+            
+            const weekThemes = ["Foundation & Setup", "Core Concepts", "Practical Application", "Advanced Techniques"];
+            const theme = weekThemes[Math.min(weekNumber - 1, weekThemes.length - 1)];
+            
+            return {
+              step: correctStepNumber,
+              week: weekNumber,
+              dayOfWeek: dayOfWeek,
+              weekTheme: theme,
+              label: step.label || `Day ${correctStepNumber}: ${goal} Learning`,
+              description: step.description || `Learn ${goal} concepts`,
+              details: step.details || `Study ${goal} and practice the skills.`,
+              tasks: Array.isArray(step.tasks) ? step.tasks : [`Study ${goal} (${perDay} hours)`],
+              resources: Array.isArray(step.resources) ? step.resources : [`${goal} resources`],
+              estimatedTime: `${perDay} hours`,
+              weeklyGoal: step.weeklyGoal || `Master week ${weekNumber} ${goal} concepts`,
+              completed: false
+            };
+          });
+
+          allSteps = allSteps.concat(chunkSteps);
+          console.log(`✅ Chunk ${chunkIndex + 1} completed. Total steps so far: ${allSteps.length}`);
           
-        } catch (shorterError) {
-          throw new Error(`Could not parse OpenAI response after multiple attempts: ${parseError.message}`);
+        } catch (chunkError) {
+          console.error(`❌ Chunk ${chunkIndex + 1} failed:`, chunkError.message);
+          throw new Error(`Failed to generate learning path chunk ${chunkIndex + 1}: ${chunkError.message}`);
         }
       }
-    }
-
-    // Validate response
-    if (!Array.isArray(plan)) {
-      throw new Error('OpenAI response is not an array');
-    }
-
-    if (plan.length === 0) {
-      throw new Error('OpenAI returned empty learning path');
-    }
-
-    // Ensure correct number of steps
-    if (plan.length !== totalSteps) {
-      console.warn(`⚠️ Expected ${totalSteps} steps, got ${plan.length}`);
-      if (plan.length > totalSteps) {
-        plan = plan.slice(0, totalSteps);
-      }
-    }
-
-    // Ensure all steps have required fields
-    plan = plan.map((step, index) => {
-      const currentStep = index + 1;
-      const weekNumber = Math.ceil(currentStep / 7);
-      const dayOfWeek = ((currentStep - 1) % 7) + 1;
       
-      const weekThemes = [
-        "Foundation & Setup", "Core Concepts", "Practical Application", 
-        "Advanced Techniques", "Specialization", "Mastery & Projects",
-        "Professional Skills", "Expert Applications"
-      ];
-      const theme = weekThemes[Math.min(weekNumber - 1, weekThemes.length - 1)];
+      console.log(`✅ Successfully generated ${allSteps.length} steps using chunked generation`);
       
-      return {
-        step: currentStep,
-        week: step.week || weekNumber,
-        dayOfWeek: step.dayOfWeek || dayOfWeek,
-        weekTheme: step.weekTheme || theme,
-        label: step.label || `Day ${currentStep}: ${curriculumTopics[index] || goal + ' learning'}`,
-        description: step.description || `Learn ${curriculumTopics[index] || 'this topic'} for ${goal}`,
-        details: step.details || `Study ${curriculumTopics[index] || 'this topic'} in depth and practice the skills.`,
-        tasks: Array.isArray(step.tasks) ? step.tasks : [`Study ${curriculumTopics[index] || 'this topic'} (${perDay} hours)`],
-        resources: Array.isArray(step.resources) ? step.resources : [`Resources for ${curriculumTopics[index] || 'this topic'}`],
-        estimatedTime: step.estimatedTime || `${perDay} hours`,
-        weeklyGoal: step.weeklyGoal || `Master this week's ${goal} concepts`,
-        completed: false
-      };
-    });
+      // Send final response
+      res.json({ 
+        plan: allSteps,
+        metadata: {
+          goal,
+          level,
+          duration,
+          perDay,
+          totalSteps: allSteps.length,
+          generatedAt: new Date().toISOString(),
+          generatedBy: 'OpenAI Chunked Generation',
+          model: 'gpt-4o-mini',
+          chunksUsed: chunksNeeded,
+          corsEnabled: true
+        }
+      });
+      
+    } else {
+      // For shorter paths (≤ 2 weeks), use single generation
+      console.log('📚 Using single generation for short learning path...');
+      
+      const prompt = `Create ${totalSteps} learning steps for "${goal}" at ${level} level.
 
-    console.log(`✅ Successfully generated ${plan.length} unique learning steps using dynamic curriculum`);
+Duration: ${duration} weeks, ${perDay} hours per day.
 
-    // Send response
-    res.json({ 
-      plan,
-      metadata: {
-        goal,
-        level,
-        duration,
-        perDay,
-        totalSteps: plan.length,
-        generatedAt: new Date().toISOString(),
-        generatedBy: 'OpenAI Dynamic Curriculum',
-        model: 'gpt-4o-mini',
-        corsEnabled: true
+Each step needs:
+- Unique specific topic
+- Brief educational details (2-3 sentences)
+- 3 tasks with time estimates
+- 3 resources
+
+Return JSON array of ${totalSteps} objects:
+[{"step":1,"week":1,"dayOfWeek":1,"weekTheme":"Foundation","label":"Day 1: [Topic]","description":"Brief","details":"What and why (concise)","tasks":["Task (20min)","Task (25min)","Task (15min)"],"resources":["Resource 1","Resource 2","Resource 3"],"estimatedTime":"${perDay} hours","weeklyGoal":"Week goal","completed":false}]
+
+Make each day unique and educational.`;
+
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content: `Create ${totalSteps} unique learning steps. Keep content concise. Return only valid JSON array.`
+          },
+          {
+            role: "user",
+            content: prompt
+          }
+        ],
+        max_tokens: 3000,
+        temperature: 0.1,
+      });
+
+      console.log('📄 OpenAI response received');
+      const response = completion.choices[0].message.content;
+
+      // Parse response with enhanced error handling
+      let plan;
+      try {
+        const cleanResponse = response.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+        plan = JSON.parse(cleanResponse);
+        console.log('✅ JSON parsed successfully');
+      } catch (parseError) {
+        console.error('❌ JSON parsing failed:', parseError.message);
+        console.log('📊 Response length:', response.length);
+        console.log('📄 Response preview:', response.substring(0, 300));
+        console.log('📄 Response ending:', response.substring(Math.max(0, response.length - 300)));
+        
+        // Try to repair JSON
+        try {
+          let jsonString = response.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+          
+          if (!jsonString.endsWith(']') || parseError.message.includes('Unterminated')) {
+            console.log('⚠️ JSON appears truncated, attempting to salvage...');
+            const lastCompleteObject = jsonString.lastIndexOf('},');
+            if (lastCompleteObject > 0) {
+              jsonString = jsonString.substring(0, lastCompleteObject + 1) + '\n]';
+              console.log('✅ Truncated to last complete object');
+            }
+          }
+          
+          plan = JSON.parse(jsonString);
+          console.log('✅ Successfully parsed repaired JSON');
+          
+        } catch (repairError) {
+          throw new Error(`Could not parse OpenAI response: ${parseError.message}`);
+        }
       }
-    });
+
+      // Validate and ensure correct structure
+      if (!Array.isArray(plan)) {
+        throw new Error('OpenAI response is not an array');
+      }
+
+      if (plan.length === 0) {
+        throw new Error('OpenAI returned empty learning path');
+      }
+
+      // Ensure correct number of steps and structure
+      if (plan.length !== totalSteps) {
+        console.warn(`⚠️ Expected ${totalSteps} steps, got ${plan.length}`);
+        if (plan.length > totalSteps) {
+          plan = plan.slice(0, totalSteps);
+        }
+      }
+
+      // Ensure all steps have required fields
+      plan = plan.map((step, index) => {
+        const currentStep = index + 1;
+        const weekNumber = Math.ceil(currentStep / 7);
+        const dayOfWeek = ((currentStep - 1) % 7) + 1;
+        
+        const weekThemes = ["Foundation & Setup", "Core Concepts", "Practical Application", "Advanced Techniques"];
+        const theme = weekThemes[Math.min(weekNumber - 1, weekThemes.length - 1)];
+        
+        return {
+          step: currentStep,
+          week: weekNumber,
+          dayOfWeek: dayOfWeek,
+          weekTheme: theme,
+          label: step.label || `Day ${currentStep}: ${goal} Learning`,
+          description: step.description || `Learn ${goal} concepts`,
+          details: step.details || `Study ${goal} and practice the skills.`,
+          tasks: Array.isArray(step.tasks) ? step.tasks : [`Study ${goal} (${perDay} hours)`],
+          resources: Array.isArray(step.resources) ? step.resources : [`${goal} resources`],
+          estimatedTime: `${perDay} hours`,
+          weeklyGoal: step.weeklyGoal || `Master week ${weekNumber} ${goal} concepts`,
+          completed: false
+        };
+      });
+
+      console.log(`✅ Successfully generated ${plan.length} learning steps using single generation`);
+
+      // Send response
+      res.json({ 
+        plan,
+        metadata: {
+          goal,
+          level,
+          duration,
+          perDay,
+          totalSteps: plan.length,
+          generatedAt: new Date().toISOString(),
+          generatedBy: 'OpenAI Single Generation',
+          model: 'gpt-4o-mini',
+          corsEnabled: true
+        }
+      });
+    }
 
   } catch (error) {
     console.error('❌ Error generating learning path:', error);
@@ -538,7 +509,7 @@ console.log('✅ Routes configured successfully');
 
 // Start server
 app.listen(PORT, () => {
-  console.log(`\n🎉 LearnBloom Server Ready with Dynamic Curriculum Generation!`);
+  console.log(`\n🎉 LearnBloom Server Ready with Optimized Token Usage!`);
   console.log(`🌐 Server: http://localhost:${PORT}`);
   console.log(`📊 Health: http://localhost:${PORT}/health`);
   console.log(`🧪 API Test: http://localhost:${PORT}/api/test`);
@@ -548,7 +519,7 @@ app.listen(PORT, () => {
     console.log(`\n❌ WARNING: OpenAI not configured!`);
     console.log(`   Add OPENAI_API_KEY to your .env file to enable learning path generation.`);
   } else {
-    console.log(`\n💡 Ready to generate AI-powered learning paths for ANY subject!`);
+    console.log(`\n💡 Ready to generate AI-powered learning paths with chunked generation!`);
   }
   console.log('');
 });
