@@ -10,27 +10,31 @@ console.log('📦 Modules loaded successfully');
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Middleware
-// Handle preflight requests first
+// Replace your middleware section with this working version:
+
+console.log('⚙️ Setting up middleware...');
+
+// CORS middleware - this MUST come first
 app.use((req, res, next) => {
-  // Set CORS headers for all requests
+  console.log(`🌐 CORS: ${req.method} ${req.url} from ${req.headers.origin || 'no-origin'}`);
+  
+  // Set CORS headers on every response
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Accept, Authorization, X-Requested-With');
   res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader('Access-Control-Max-Age', '86400'); // 24 hours
-  
-  console.log(`🔄 ${req.method} ${req.url} from Origin: ${req.headers.origin || 'No Origin'}`);
   
   // Handle preflight OPTIONS requests
   if (req.method === 'OPTIONS') {
-    console.log('🚀 Preflight OPTIONS request handled');
-    return res.status(200).end();
+    console.log('✅ Handling OPTIONS preflight request');
+    res.status(200).end();
+    return;
   }
   
   next();
 });
 
+// JSON parsing middleware
 app.use(express.json());
 
 console.log('⚙️ Middleware configured');
