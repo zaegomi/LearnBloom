@@ -181,230 +181,230 @@ app.post('/api/generate-path', async (req, res) => {
     console.log(`🎯 Generating ${totalSteps} detailed steps for "${goal}" (${level} level) - ${duration} weeks × 7 days = ${totalSteps} days using OpenAI`);
 
     // Create enhanced prompt for OpenAI with week-by-week structure
-    const prompt = `Create a comprehensive ${duration}-week learning path for: "${goal}"
+const prompt = `Create a comprehensive ${duration}-week learning path for: "${goal}" at ${level} level.
 
-Requirements:
+CRITICAL REQUIREMENTS:
 - Experience level: ${level}
 - Duration: ${duration} weeks (${totalSteps} total days)
 - Daily study time: ${perDay} hours per day
-- Total steps needed: ${totalSteps} (7 days per week)
+- MUST generate exactly ${totalSteps} unique learning steps
+- Each day must have SPECIFIC, ACTIONABLE content related to ${goal}
+- NO generic "Advanced Practice" or "Review" days
+- Every step must build toward mastering ${goal}
 
-Structure the learning path with week-by-week progression. Create exactly 7 days of content for each week.
+Week-by-week progression themes:
+Week 1: Foundation & Setup - Environment, tools, basic concepts
+Week 2: Core Concepts - Fundamental principles and theory
+Week 3: Practical Application - Hands-on projects and exercises
+Week 4: Advanced Techniques - Complex skills and optimization
+Week 5: Specialization - Focused areas and advanced topics
+Week 6: Mastery & Projects - Real-world applications
+Week 7: Professional Skills - Industry practices and standards
+Week 8: Expert Applications - Advanced use cases and innovation
 
-Week-by-week themes should follow this progression:
-Week 1: Foundation & Setup
-Week 2: Core Concepts  
-Week 3: Practical Application
-Week 4: Advanced Techniques
-Week 5: Specialization
-Week 6: Mastery & Projects
-Week 7: Professional Skills
-Week 8: Expert Applications
-(Continue pattern for longer durations)
+For ${goal} specifically, create unique daily content that covers:
+- Specific skills, techniques, or concepts related to ${goal}
+- Practical exercises and projects
+- Tools and technologies used in ${goal}
+- Real-world applications and use cases
+- Progressive difficulty appropriate for ${level} level
 
-For each day, provide:
-1. Day number (1-${totalSteps})
-2. Week number (1-${duration})
-3. Day of week (1-7, where 1=Monday, 7=Sunday)
-4. Step title (concise, actionable)
-5. Description (brief overview)
-6. Detailed explanation (what to do and why it's important)
-7. Specific tasks to complete (3-5 actionable items with time estimates)
-8. Recommended resources (3-4 high-quality learning materials)
-9. Estimated time (should match ${perDay} hours)
-10. Week theme/focus area
+STRUCTURE: Return exactly ${totalSteps} steps as a JSON array. Each step must include:
+{
+  "step": [1-${totalSteps}],
+  "week": [1-${duration}],
+  "dayOfWeek": [1-7],
+  "weekTheme": "Specific theme for this week",
+  "label": "Day X: Specific ${goal} topic or skill",
+  "description": "Brief overview of this specific day's learning focus",
+  "details": "Detailed explanation of what to learn, why it's important, and how it relates to ${goal}. Must be specific to ${goal} and this learning stage.",
+  "tasks": [
+    "Specific task 1 with time estimate (XX min)",
+    "Specific task 2 with time estimate (XX min)",
+    "Specific task 3 with time estimate (XX min)",
+    "Specific task 4 with time estimate (XX min)"
+  ],
+  "resources": [
+    "Specific resource 1 for ${goal}",
+    "Specific resource 2 for ${goal}",
+    "Specific resource 3 for ${goal}",
+    "Specific resource 4 for ${goal}"
+  ],
+  "estimatedTime": "${perDay} hours",
+  "weeklyGoal": "Specific goal for this week related to ${goal}",
+  "completed": false
+}
 
-Return as JSON array with this exact structure:
-[
-  {
-    "step": 1,
-    "week": 1,
-    "dayOfWeek": 1,
-    "weekTheme": "Foundation & Setup",
-    "label": "Day 1: Setting Up Your Learning Environment",
-    "description": "Begin your journey by setting up everything you need to learn ${goal} effectively",
-    "details": "This first day is crucial for establishing a strong foundation. You'll set up your development environment, familiarize yourself with essential tools, and understand the learning roadmap ahead. Spend time configuring your workspace properly as this will save hours later. Focus on understanding why each tool is important and how it fits into the ${goal} ecosystem.",
-    "tasks": ["Install required software and tools (45 min)", "Configure development environment (30 min)", "Complete setup verification exercises (30 min)", "Read introductory materials and take notes (15 min)"],
-    "resources": ["Official ${goal} documentation", "Environment setup tutorial videos", "Recommended textbooks and guides", "Community forums and support channels"],
-    "estimatedTime": "${perDay} hours",
-    "weeklyGoal": "Complete environment setup and understand fundamental concepts",
-    "completed": false
+EXAMPLES of good day topics for learning ${goal}:
+- Specific techniques, methods, or skills
+- Practical projects or exercises
+- Tools and software usage
+- Theory and concepts with application
+- Problem-solving and troubleshooting
+- Best practices and standards
+- Integration with other systems/skills
+
+AVOID generic content like:
+- "Advanced Practice"
+- "Review and Practice"
+- "General Exercises"
+- Repetitive content
+
+Make each day unique and specifically valuable for learning ${goal} at the ${level} level.
+
+Return ONLY the JSON array with exactly ${totalSteps} detailed, unique steps.`;
+
+console.log('🤖 Calling OpenAI API with enhanced prompt...');
+
+const completion = await openai.chat.completions.create({
+  model: "gpt-4o-mini",
+  messages: [
+    {
+      role: "system",
+      content: `You are an expert curriculum designer specializing in ${goal}. Create comprehensive, detailed learning paths with unique daily content. Every day must have specific, actionable content related to ${goal}. Never use generic placeholder content like "Advanced Practice" or "Review." Each step should teach something specific and valuable about ${goal}. Respond with valid JSON only.`
+    },
+    {
+      role: "user",
+      content: prompt
+    }
+  ],
+  max_tokens: 4000,
+  temperature: 0.2, // Lower temperature for more consistent, focused content
+});
+
+console.log('📄 OpenAI response received');
+const response = completion.choices[0].message.content;
+
+// Enhanced JSON parsing with better error handling
+let plan;
+try {
+  const cleanedResponse = response.trim();
+  plan = JSON.parse(cleanedResponse);
+  console.log('✅ JSON parsed successfully');
+} catch (parseError) {
+  console.warn('⚠️ Direct JSON parse failed, trying to extract and fix...');
+  
+  try {
+    // Extract JSON array from response
+    const jsonMatch = response.match(/\[[\s\S]*\]/);
+    if (jsonMatch) {
+      let jsonString = jsonMatch[0];
+      
+      // Fix common JSON issues
+      jsonString = jsonString.replace(/,\s*([}\]])/g, '$1');
+      jsonString = jsonString.replace(/"/g, '"').replace(/"/g, '"');
+      
+      plan = JSON.parse(jsonString);
+      console.log('✅ JSON extracted and fixed successfully');
+    } else {
+      throw new Error('No JSON array found in response');
+    }
+  } catch (extractError) {
+    console.error('❌ Could not extract or fix JSON from response');
+    throw new Error(`Invalid JSON response from OpenAI: ${parseError.message}`);
   }
-]
+}
 
-Make each week build logically on the previous week. Ensure daily progression within each week is cohesive and works toward the weekly goal. Include appropriate content for weekends (days 6-7 of each week) like review, practice, or project work.
+// Validate response structure
+if (!Array.isArray(plan)) {
+  throw new Error('OpenAI response is not an array');
+}
 
-For ${duration} weeks with ${perDay} hours daily study, create a realistic progression that respects the time commitment and learning pace. Each day should have meaningful, detailed content that builds toward mastery of ${goal}.
+if (plan.length === 0) {
+  throw new Error('OpenAI returned empty learning path');
+}
 
-IMPORTANT: Return ONLY valid JSON. No additional text, explanations, or formatting outside the JSON array.`;
+// If OpenAI didn't generate enough steps, request more specific content
+if (plan.length < totalSteps) {
+  console.warn(`⚠️ OpenAI generated ${plan.length} steps, need ${totalSteps}. Requesting additional specific content...`);
+  
+  // Calculate how many more steps we need
+  const missingSteps = totalSteps - plan.length;
+  const lastWeek = Math.ceil(plan.length / 7);
+  const nextWeek = lastWeek + 1;
+  
+  // Create a follow-up prompt for missing content
+  const followUpPrompt = `Continue the ${goal} learning path. Generate ${missingSteps} more specific learning steps for weeks ${nextWeek} onwards.
 
-    console.log('🤖 Calling OpenAI API...');
+Previous content covered: ${plan.map(p => p.label).slice(-3).join(', ')}
 
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini", // Use GPT-4 mini for better JSON consistency and higher token limits
+Generate ${missingSteps} additional steps starting from step ${plan.length + 1}, continuing the ${goal} curriculum with specific, unique content. Each step must cover distinct aspects of ${goal} learning.
+
+Return ONLY a JSON array with exactly ${missingSteps} steps, continuing the sequence and maintaining quality.`;
+
+  try {
+    const followUpCompletion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
       messages: [
         {
           role: "system",
-          content: "You are an expert learning path designer. Create detailed, comprehensive learning plans that provide real educational value. Always respond with valid JSON arrays only, no additional text or formatting. Ensure each step has thorough, actionable content that truly helps someone learn."
+          content: `Continue creating specific learning content for ${goal}. Every step must be unique and valuable.`
         },
         {
           role: "user",
-          content: prompt
+          content: followUpPrompt
         }
       ],
-      max_tokens: 4000,
-      temperature: 0.3,
+      max_tokens: 2000,
+      temperature: 0.2,
     });
 
-    console.log('📄 OpenAI response received');
-    const response = completion.choices[0].message.content;
+    const followUpResponse = followUpCompletion.choices[0].message.content;
+    let additionalSteps = JSON.parse(followUpResponse.trim());
+    
+    // Merge the additional steps
+    plan = [...plan, ...additionalSteps];
+    console.log(`✅ Added ${additionalSteps.length} additional specific steps`);
+    
+  } catch (followUpError) {
+    console.warn('⚠️ Follow-up request failed, using original content only');
+  }
+}
 
-    // Parse the JSON response
-    let plan;
-    try {
-      // Clean the response first
-      const cleanedResponse = response.trim();
-      plan = JSON.parse(cleanedResponse);
-      console.log('✅ JSON parsed successfully');
-    } catch (parseError) {
-      console.warn('⚠️ Direct JSON parse failed, trying to extract and fix...');
-      console.log('Response length:', response.length);
-      console.log('Response preview:', response.substring(0, 200) + '...');
-      
-      try {
-        // Try to extract JSON array from response
-        const jsonMatch = response.match(/\[[\s\S]*\]/);
-        if (jsonMatch) {
-          let jsonString = jsonMatch[0];
-          
-          // Try to fix common JSON issues
-          // Remove trailing commas before closing brackets
-          jsonString = jsonString.replace(/,\s*([}\]])/g, '$1');
-          
-          // Ensure proper string escaping
-          jsonString = jsonString.replace(/"/g, '"').replace(/"/g, '"');
-          
-          // Try to complete truncated JSON by adding closing brackets if needed
-          const openBraces = (jsonString.match(/\{/g) || []).length;
-          const closeBraces = (jsonString.match(/\}/g) || []).length;
-          const openBrackets = (jsonString.match(/\[/g) || []).length;
-          const closeBrackets = (jsonString.match(/\]/g) || []).length;
-          
-          // Add missing closing braces
-          for (let i = 0; i < openBraces - closeBraces; i++) {
-            jsonString = jsonString.replace(/,?\s*$/, '}');
-          }
-          
-          // Add missing closing brackets
-          for (let i = 0; i < openBrackets - closeBrackets; i++) {
-            jsonString += ']';
-          }
-          
-          plan = JSON.parse(jsonString);
-          console.log('✅ JSON extracted and fixed successfully');
-        } else {
-          throw new Error('No JSON array found in response');
-        }
-      } catch (extractError) {
-        console.error('❌ Could not extract or fix JSON from response');
-        console.error('Parse error:', parseError.message);
-        console.error('Extract error:', extractError.message);
-        console.error('Response sample:', response.substring(0, 500));
-        throw new Error(`Invalid JSON response from OpenAI: ${parseError.message}`);
-      }
-    }
+// Ensure we have exactly the right number of steps (trim if too many)
+if (plan.length > totalSteps) {
+  plan = plan.slice(0, totalSteps);
+  console.log(`✅ Trimmed to exactly ${totalSteps} steps`);
+}
 
-    // Validate response structure
-    if (!Array.isArray(plan)) {
-      throw new Error('OpenAI response is not an array');
-    }
+// Final validation and enhancement of each step
+plan = plan.map((step, index) => {
+  const currentStep = index + 1;
+  const weekNumber = Math.ceil(currentStep / 7);
+  const dayOfWeek = ((currentStep - 1) % 7) + 1;
+  
+  // Ensure all required fields exist and are meaningful
+  return {
+    step: currentStep,
+    week: step.week || weekNumber,
+    dayOfWeek: step.dayOfWeek || dayOfWeek,
+    weekTheme: step.weekTheme || `Week ${weekNumber} Learning`,
+    label: step.label || `Day ${currentStep}: ${goal} Learning`,
+    description: step.description || `Focused learning session for ${goal}`,
+    details: step.details || `Detailed learning content for ${goal} at ${level} level.`,
+    tasks: Array.isArray(step.tasks) && step.tasks.length > 0 
+      ? step.tasks 
+      : [`Study ${goal} concepts (${Math.floor(perDay * 60 / 4)} min)`, `Practice exercises (${Math.floor(perDay * 60 / 2)} min)`, `Review and take notes (${Math.floor(perDay * 60 / 4)} min)`],
+    resources: Array.isArray(step.resources) && step.resources.length > 0 
+      ? step.resources 
+      : [`${goal} documentation`, `Online tutorials`, `Practice exercises`, `Community forums`],
+    estimatedTime: step.estimatedTime || `${perDay} hours`,
+    weeklyGoal: step.weeklyGoal || `Progress in ${goal} learning`,
+    completed: false
+  };
+});
 
-    if (plan.length === 0) {
-      throw new Error('OpenAI returned empty learning path');
-    }
+console.log(`✅ Successfully generated ${plan.length} unique, detailed learning steps for ${goal}`);
 
-    // Ensure we have the right number of steps
-    if (plan.length !== totalSteps) {
-      console.warn(`⚠️ Expected ${totalSteps} steps, got ${plan.length}. Adjusting...`);
-      
-      if (plan.length > totalSteps) {
-        plan = plan.slice(0, totalSteps);
-      } else {
-        // Ask OpenAI to generate more steps if needed
-        while (plan.length < totalSteps) {
-          const currentStep = plan.length + 1;
-          const weekNumber = Math.ceil(currentStep / 7);
-          const dayOfWeek = ((currentStep - 1) % 7) + 1;
-          const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-          const dayName = dayNames[dayOfWeek - 1];
-          
-          const weekThemes = [
-            "Foundation & Setup", "Core Concepts", "Practical Application", 
-            "Advanced Techniques", "Specialization", "Mastery & Projects",
-            "Professional Skills", "Expert Applications"
-          ];
-          const theme = weekThemes[Math.min(weekNumber - 1, weekThemes.length - 1)];
-          
-          plan.push({
-            step: currentStep,
-            week: weekNumber,
-            dayOfWeek: dayOfWeek,
-            weekTheme: theme,
-            label: `Day ${currentStep} (${dayName}): Advanced Practice`,
-            description: `Week ${weekNumber}, Day ${dayOfWeek}: Continue practicing and refining your skills in ${theme.toLowerCase()}`,
-            details: `This ${dayName} focuses on reinforcing what you've learned so far in ${theme.toLowerCase()}. Practice the concepts from previous days and explore more advanced applications. Dedicate your ${perDay} hours to deepening your understanding through hands-on work.`,
-            tasks: [
-              `Review Week ${weekNumber} concepts (30-45 min)`,
-              "Practice advanced exercises (1-2 hours)", 
-              "Experiment with new variations (30-45 min)",
-              "Reflect on your learning progress (15-30 min)"
-            ],
-            resources: [
-              "Previous day materials",
-              "Advanced practice exercises",
-              "Community forums and discussions",
-              "Additional tutorials and documentation"
-            ],
-            estimatedTime: `${perDay} hours`,
-            weeklyGoal: `Master the ${theme.toLowerCase()} concepts and be ready for next week's challenges`,
-            completed: false
-          });
-        }
-      }
-    }
-
-    // Ensure step numbers are sequential and all required fields exist
-    plan = plan.map((step, index) => {
-      const currentStep = index + 1;
-      const weekNumber = Math.ceil(currentStep / 7);
-      const dayOfWeek = ((currentStep - 1) % 7) + 1;
-      const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-      const dayName = dayNames[dayOfWeek - 1];
-      
-      const weekThemes = [
-        "Foundation & Setup", "Core Concepts", "Practical Application", 
-        "Advanced Techniques", "Specialization", "Mastery & Projects",
-        "Professional Skills", "Expert Applications"
-      ];
-      const theme = weekThemes[Math.min(weekNumber - 1, weekThemes.length - 1)];
-      
-      return {
-        step: currentStep,
-        week: step.week || weekNumber,
-        dayOfWeek: step.dayOfWeek || dayOfWeek,
-        weekTheme: step.weekTheme || theme,
-        label: step.label || `Day ${currentStep} (${dayName}): Week ${weekNumber} Learning`,
-        description: step.description || `Week ${weekNumber}, Day ${dayOfWeek} - ${dayName} learning session`,
-        details: step.details || "Complete this learning step to progress in your journey.",
-        tasks: Array.isArray(step.tasks) ? step.tasks : ["Complete the learning objectives"],
-        resources: Array.isArray(step.resources) ? step.resources : ["Study materials", "Practice exercises"],
-        estimatedTime: step.estimatedTime || `${perDay} hours`,
-        weeklyGoal: step.weeklyGoal || `Progress through Week ${weekNumber} objectives`,
-        completed: false
-      };
-    });
-
-    console.log(`✅ Successfully generated ${plan.length} detailed learning steps using OpenAI`);
+// Log a summary of the generated content to verify uniqueness
+console.log('📋 Generated steps summary:');
+plan.forEach((step, index) => {
+  if (index < 5 || index >= plan.length - 2) { // Log first 5 and last 2 steps
+    console.log(`  Step ${step.step}: ${step.label}`);
+  } else if (index === 5) {
+    console.log(`  ... (${plan.length - 7} more unique steps) ...`);
+  }
+});
 
     // Send response
     res.json({ 
