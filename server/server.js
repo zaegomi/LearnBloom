@@ -11,15 +11,17 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 // Middleware
-app.use(cors({
-  origin: true,  // Allow all origins temporarily
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Accept', 'Authorization', 'X-Requested-With'],
-  optionsSuccessStatus: 200
-}));
+// Handle preflight requests first
+app.options('*', (req, res) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Accept, Authorization, X-Requested-With');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  console.log('✅ Handling OPTIONS (preflight) request');
+  res.sendStatus(200);
+});
 
-// Manual CORS headers as backup
+// Add CORS headers to all responses
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
@@ -27,11 +29,6 @@ app.use((req, res, next) => {
   res.header('Access-Control-Allow-Credentials', 'true');
   
   console.log(`📡 ${req.method} ${req.path} from ${req.headers.origin}`);
-  
-  if (req.method === 'OPTIONS') {
-    console.log('✅ Handling OPTIONS request');
-    return res.sendStatus(200);
-  }
   next();
 });
 
