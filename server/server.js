@@ -175,95 +175,146 @@ app.post('/api/generate-path', async (req, res) => {
     console.log(`🎯 Generating ${totalSteps} detailed steps for "${goal}" (${level} level) - ${duration} weeks × 7 days = ${totalSteps} days using OpenAI`);
 
     // Create enhanced prompt for OpenAI with week-by-week structure
-    const prompt = `Create a comprehensive ${duration}-week learning path for: "${goal}" at ${level} level.
+    // Replace the prompt creation section in your server.js with this enhanced version:
 
-CRITICAL REQUIREMENTS:
-- Experience level: ${level}
-- Duration: ${duration} weeks (${totalSteps} total days)
+const prompt = `You are creating a ${duration}-week masterclass curriculum for "${goal}" at ${level} level.
+
+ABSOLUTE REQUIREMENTS FOR UNIQUENESS:
+- Generate exactly ${totalSteps} completely UNIQUE learning experiences
+- Every day must cover a DIFFERENT specific aspect of ${goal}
+- NO repetitive content, NO generic "practice" days
+- Each day = ONE specific skill/concept/technique that's distinct from all others
 - Daily study time: ${perDay} hours per day
-- MUST generate exactly ${totalSteps} unique learning steps
-- Each day must have SPECIFIC, ACTIONABLE content related to ${goal}
-- NO generic "Advanced Practice" or "Review" days
-- Every step must build toward mastering ${goal}
 
-Week-by-week progression themes:
-Week 1: Foundation & Setup - Environment, tools, basic concepts
-Week 2: Core Concepts - Fundamental principles and theory
-Week 3: Practical Application - Hands-on projects and exercises
-Week 4: Advanced Techniques - Complex skills and optimization
-Week 5: Specialization - Focused areas and advanced topics
-Week 6: Mastery & Projects - Real-world applications
-Week 7: Professional Skills - Industry practices and standards
-Week 8: Expert Applications - Advanced use cases and innovation
+CONTENT UNIQUENESS MANDATES:
+1. UNIQUE DAILY TOPICS: Each day must focus on a completely different ${goal} skill/concept
+2. UNIQUE LABELS: Every "Day X:" title must describe a specific, distinct topic
+3. UNIQUE DETAILS: "What You'll Do" must be completely different each day
+4. UNIQUE TASKS: Every task list must contain specific, non-repetitive actions
+5. UNIQUE RESOURCES: Different learning materials for each day's specific topic
 
-For ${goal} specifically, create unique daily content that covers:
-- Specific skills, techniques, or concepts related to ${goal}
-- Practical exercises and projects
-- Tools and technologies used in ${goal}
-- Real-world applications and use cases
-- Progressive difficulty appropriate for ${level} level
+PROGRESSIVE CURRICULUM STRUCTURE:
+Week 1 (Days 1-7): Foundation & Setup
+- Day 1: Environment/tool setup specific to ${goal}
+- Day 2: First core concept of ${goal}
+- Day 3: Second fundamental principle
+- Day 4: Basic hands-on skill #1
+- Day 5: Basic hands-on skill #2
+- Day 6: Integration of concepts learned
+- Day 7: First practical application
 
-STRUCTURE: Return exactly ${totalSteps} steps as a JSON array. Each step must include:
-{
-  "step": [1-${totalSteps}],
-  "week": [1-${duration}],
-  "dayOfWeek": [1-7],
-  "weekTheme": "Specific theme for this week",
-  "label": "Day X: Specific ${goal} topic or skill",
-  "description": "Brief overview of this specific day's learning focus",
-  "details": "Detailed explanation of what to learn, why it's important, and how it relates to ${goal}. Must be specific to ${goal} and this learning stage.",
-  "tasks": [
-    "Specific task 1 with time estimate (XX min)",
-    "Specific task 2 with time estimate (XX min)",
-    "Specific task 3 with time estimate (XX min)",
-    "Specific task 4 with time estimate (XX min)"
-  ],
-  "resources": [
-    "Specific resource 1 for ${goal}",
-    "Specific resource 2 for ${goal}",
-    "Specific resource 3 for ${goal}",
-    "Specific resource 4 for ${goal}"
-  ],
-  "estimatedTime": "${perDay} hours",
-  "weeklyGoal": "Specific goal for this week related to ${goal}",
-  "completed": false
-}
+Week 2 (Days 8-14): Core Concepts
+- Day 8: Advanced concept #1
+- Day 9: Advanced concept #2
+- Day 10: Specialized technique #1
+- Day 11: Specialized technique #2
+- Day 12: Problem-solving methodology
+- Day 13: Best practices and standards
+- Day 14: Real-world application project
 
-EXAMPLES of good day topics for learning ${goal}:
-- Specific techniques, methods, or skills
-- Practical projects or exercises
-- Tools and software usage
-- Theory and concepts with application
-- Problem-solving and troubleshooting
-- Best practices and standards
-- Integration with other systems/skills
+[Continue this pattern, ensuring every day covers a DIFFERENT aspect of ${goal}]
 
-AVOID generic content like:
-- "Advanced Practice"
-- "Review and Practice"
-- "General Exercises"
-- Repetitive content
+FOR ${goal} SPECIFICALLY, ensure each day covers unique topics like:
+- Different tools/software used in ${goal}
+- Specific techniques and methodologies
+- Various problem-solving approaches
+- Different project types and applications
+- Distinct skill areas within ${goal}
+- Separate theoretical concepts
+- Individual practical exercises
+- Unique troubleshooting scenarios
+- Different industry applications
+- Specific advanced features/capabilities
 
-Make each day unique and specifically valuable for learning ${goal} at the ${level} level.
+EXAMPLE of what GOOD unique daily progression looks like:
+Day 1: "Setting up your ${goal} development environment"
+Day 2: "Understanding ${goal} fundamental syntax and structure"
+Day 3: "Working with variables and data types in ${goal}"
+Day 4: "Control flow: loops and conditionals"
+Day 5: "Functions and modular programming"
+Day 6: "Error handling and debugging techniques"
+Day 7: "Building your first complete ${goal} project"
+Day 8: "Object-oriented programming concepts"
+Day 9: "Working with external libraries and APIs"
+Day 10: "Database integration and data management"
+...and so on, each day being completely unique
 
-Return ONLY the JSON array with exactly ${totalSteps} detailed, unique steps. Do not wrap in markdown code blocks.`;
+WHAT TO AVOID (these indicate non-unique content):
+❌ "Advanced Practice" (too generic)
+❌ "Review and Practice" (not learning new content)
+❌ "General Exercises" (not specific enough)
+❌ "Continue practicing" (repetitive)
+❌ "More of the same" (indicates duplication)
+❌ Any day that sounds similar to a previous day
+
+REQUIRED JSON STRUCTURE for exactly ${totalSteps} steps:
+[
+  {
+    "step": 1,
+    "week": 1,
+    "dayOfWeek": 1,
+    "weekTheme": "Foundation & Setup",
+    "label": "Day 1: [SPECIFIC UNIQUE ${goal} TOPIC]",
+    "description": "[Brief description of this day's unique learning focus]",
+    "details": "[Detailed explanation of this specific aspect of ${goal}, what makes it important, and how it fits into the learning progression. Must be completely unique from all other days.]",
+    "tasks": [
+      "[Specific task 1 related to today's unique topic] (XX min)",
+      "[Specific task 2 for this particular skill] (XX min)",
+      "[Specific task 3 unique to this concept] (XX min)",
+      "[Specific task 4 for this day's focus] (XX min)"
+    ],
+    "resources": [
+      "[Specific resource 1 for today's unique topic]",
+      "[Specific resource 2 for this particular skill]",
+      "[Specific resource 3 for this concept]",
+      "[Specific resource 4 for this day's focus]"
+    ],
+    "estimatedTime": "${perDay} hours",
+    "weeklyGoal": "[Specific goal for this week]",
+    "completed": false
+  }
+]
+
+CRITICAL: Make sure days 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28 are just as unique and specific as days 1-14. Each should introduce a NEW aspect of ${goal} that hasn't been covered before.
+
+Generate exactly ${totalSteps} completely unique learning experiences. Return ONLY the JSON array.`;
 
     console.log('🤖 Calling OpenAI API with enhanced prompt...');
 
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
-        {
-          role: "system",
-          content: `You are an expert curriculum designer specializing in ${goal}. Create comprehensive, detailed learning paths with unique daily content. Every day must have specific, actionable content related to ${goal}. Never use generic placeholder content like "Advanced Practice" or "Review." Each step should teach something specific and valuable about ${goal}. Respond with valid JSON only - no markdown code blocks, no explanations, just the JSON array.`
-        },
+        // Replace the system message in your OpenAI call with this enhanced version:
+
+{
+  role: "system",
+  content: `You are a master curriculum designer creating a comprehensive ${goal} course. Your specialty is designing learning paths where EVERY SINGLE DAY teaches something completely different and unique.
+
+CORE PRINCIPLES:
+- Every day must cover a distinct, specific aspect of ${goal}
+- No day should repeat content from any other day
+- Each day should introduce new concepts, tools, techniques, or applications
+- Days 15-28 must be just as unique and valuable as days 1-14
+- Avoid any generic "practice" or "review" content
+
+For ${goal} at ${level} level, you have deep knowledge of:
+- All the specific tools and technologies used
+- Different methodologies and approaches
+- Various application areas and use cases
+- Progressive skill development pathways
+- Real-world applications and projects
+
+Create exactly ${totalSteps} unique learning experiences that build expertise in ${goal}. Each day should feel like learning something completely new and valuable.
+
+Respond with ONLY the JSON array - no explanations, no markdown, just pure JSON.`
+},
         {
           role: "user",
           content: prompt
         }
       ],
       max_tokens: 4000,
-      temperature: 0.2, // Lower temperature for more consistent, focused content
+      temperature: 0.1, // Lower temperature for more consistent, focused content
     });
 
     console.log('📄 OpenAI response received');
@@ -485,6 +536,114 @@ Return ONLY a JSON array with exactly ${missingSteps} steps, continuing the sequ
         console.log(`  Step ${step.step}: ${step.label}`);
       } else if (index === 5) {
         console.log(`  ... (${plan.length - 7} more unique steps) ...`);
+      }
+    });
+
+// Validate uniqueness of content
+    console.log('🔍 Validating content uniqueness...');
+    const uniquenessIssues = [];
+
+    // Check for duplicate or similar labels
+    const labels = plan.map(step => step.label?.toLowerCase() || '');
+    const duplicateLabels = labels.filter((label, index) => labels.indexOf(label) !== index);
+    if (duplicateLabels.length > 0) {
+      uniquenessIssues.push(`Duplicate labels found: ${duplicateLabels.join(', ')}`);
+    }
+
+    // Check for generic content patterns
+    const genericPatterns = [
+      'advanced practice', 'review and practice', 'general exercises', 
+      'continue practicing', 'more practice', 'additional practice',
+      'practice session', 'review session', 'exercise day'
+    ];
+
+    plan.forEach((step, index) => {
+      const content = `${step.label} ${step.description} ${step.details}`.toLowerCase();
+      genericPatterns.forEach(pattern => {
+        if (content.includes(pattern)) {
+          uniquenessIssues.push(`Day ${step.step} contains generic content: "${pattern}"`);
+        }
+      });
+      
+      // Check if tasks are too similar across days
+      if (step.tasks && Array.isArray(step.tasks)) {
+        const hasGenericTasks = step.tasks.some(task => 
+          task.toLowerCase().includes('practice') && 
+          task.toLowerCase().includes('exercise') &&
+          !task.toLowerCase().includes('specific')
+        );
+        if (hasGenericTasks) {
+          uniquenessIssues.push(`Day ${step.step} has generic tasks`);
+        }
+      }
+    });
+
+    // If uniqueness issues found, request more specific content
+    if (uniquenessIssues.length > 0) {
+      console.warn('⚠️ Uniqueness issues detected:', uniquenessIssues);
+      console.log('🔄 Requesting more specific content from OpenAI...');
+      
+      const refinementPrompt = `The previous ${goal} curriculum had some generic content. Please create a more specific version with these requirements:
+
+ISSUES TO FIX:
+${uniquenessIssues.map(issue => `- ${issue}`).join('\n')}
+
+Create exactly ${totalSteps} steps for learning ${goal} where:
+1. Every day has a completely unique, specific topic
+2. No generic "practice" or "review" days
+3. Each day teaches a distinct skill/concept/tool/technique
+4. All tasks are specific to that day's learning objective
+5. Resources are tailored to each day's specific topic
+
+Focus especially on making days 15-28 unique and valuable, covering advanced aspects of ${goal} like:
+- Specialized tools and techniques
+- Advanced methodologies
+- Complex problem-solving scenarios
+- Real-world project applications
+- Industry-specific use cases
+- Integration with other systems
+- Optimization and best practices
+
+Return ONLY the JSON array with ${totalSteps} completely unique learning experiences.`;
+
+      try {
+        const refinementCompletion = await openai.chat.completions.create({
+          model: "gpt-4o-mini",
+          messages: [
+            {
+              role: "system",
+              content: `You are a specialist in creating unique, non-repetitive learning content for ${goal}. Every day must teach something completely different. Respond with only JSON.`
+            },
+            {
+              role: "user",
+              content: refinementPrompt
+            }
+          ],
+          max_tokens: 4000,
+          temperature: 0.1, // Lower temperature for more consistent, focused content
+        });
+
+        const refinedResponse = refinementCompletion.choices[0].message.content.trim();
+        
+        // Parse the refined response using same strategies
+        let refinedPlan;
+        try {
+          refinedPlan = JSON.parse(refinedResponse.replace(/```json\s*/g, '').replace(/```\s*/g, ''));
+          plan = refinedPlan;
+          console.log('✅ Used refined, more unique content');
+        } catch (refinedParseError) {
+          console.warn('⚠️ Could not parse refined response, using original');
+        }
+      } catch (refinementError) {
+        console.warn('⚠️ Refinement request failed, using original content');
+      }
+    }
+
+    // Send response (this should already exist)
+    res.json({ 
+      plan,
+      metadata: {
+        // ... existing metadata
       }
     });
 
