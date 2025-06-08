@@ -639,13 +639,7 @@ Return ONLY the JSON array with ${totalSteps} completely unique learning experie
       }
     }
 
-    // Send response (this should already exist)
-    res.json({ 
-      plan,
-      metadata: {
-        // ... existing metadata
-      }
-    });
+
 
     // Send response
     res.json({ 
