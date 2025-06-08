@@ -32,6 +32,7 @@ function App() {
   const [savedPaths, setSavedPaths] = useState(() => loadFromStorage('savedPaths', []));
   const [loading, setLoading] = useState(false);
   const [selectedStep, setSelectedStep] = useState(null);
+  const [validationError, setValidationError] = useState('');
 
   // Auto-save when data changes
   useEffect(() => {
@@ -66,6 +67,69 @@ function App() {
     saveToStorage('savedPaths', savedPaths);
   }, [savedPaths]);
 
+  // Validation function for input fields
+  const validateInputs = () => {
+    if (!goal.trim()) {
+      setValidationError('Please enter a learning goal');
+      return false;
+    }
+    
+    if (duration < 1) {
+      setValidationError('Duration must be at least 1 week');
+      return false;
+    }
+    
+    if (duration > 52) {
+      setValidationError('Duration cannot exceed 52 weeks (1 year). Please try a shorter timeframe.');
+      return false;
+    }
+    
+    if (perDay < 1) {
+      setValidationError('Hours per day must be at least 1');
+      return false;
+    }
+    
+    if (perDay > 10) {
+      setValidationError('Hours per day cannot exceed 10. Please choose a more realistic schedule.');
+      return false;
+    }
+    
+    setValidationError('');
+    return true;
+  };
+
+  // Handle duration input change with validation
+  const handleDurationChange = (value) => {
+    const numValue = parseInt(value);
+    
+    if (isNaN(numValue) || numValue < 1) {
+      setDuration(1);
+      setValidationError('Duration must be at least 1 week');
+    } else if (numValue > 52) {
+      setDuration(52);
+      setValidationError('Duration cannot exceed 52 weeks (1 year). Please try a shorter timeframe.');
+    } else {
+      setDuration(numValue);
+      setValidationError('');
+    }
+  };
+
+  // Handle hours per day input change with validation
+  const handlePerDayChange = (value) => {
+    const numValue = parseInt(value);
+    
+    if (isNaN(numValue) || numValue < 1) {
+      setPerDay(1);
+      setValidationError('Hours per day must be at least 1');
+    } else if (numValue > 10) {
+      setPerDay(10);
+      setValidationError('Hours per day cannot exceed 10. Please choose a more realistic schedule.');
+    } else {
+      setPerDay(numValue);
+      setValidationError('');
+    }
+  };
+
   // Clear all data function (for testing/reset)
   const clearAllData = () => {
     if (window.confirm('Are you sure you want to clear all saved data?')) {
@@ -88,6 +152,7 @@ function App() {
       setProgress(0);
       setSavedPaths([]);
       setSelectedStep(null);
+      setValidationError('');
       
       alert('All data cleared!');
     }
@@ -107,90 +172,93 @@ function App() {
   }, []);
 
   // Generate learning path by calling backend
-const generatePlan = async () => {
-  if (!goal.trim()) {
-    alert('Please enter a learning goal');
-    return;
-  }
-
-  setLoading(true);
-  try {
-    console.log('🚀 Making API call to backend...');
+  const generatePlan = async () => {
+    // Clear any previous validation errors
+    setValidationError('');
     
-    const API_BASE_URL = process.env.NODE_ENV === 'production' 
-      ? 'https://learn-bloom.vercel.app'  // Your exact backend URL
-      : 'http://localhost:5000';
-
-    console.log('📡 API URL:', `${API_BASE_URL}/api/generate-path`);
-    console.log('📊 Request data:', { goal, level, duration, perDay });
-
-    const response = await fetch(`${API_BASE_URL}/api/generate-path`, {
-      method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      },
-      body: JSON.stringify({ goal, level, duration, perDay })
-    });
-    
-    console.log('📡 Response status:', response.status);
-    console.log('📡 Response headers:', response.headers);
-    
-    // Check if response is ok
-    if (!response.ok) {
-      const errorText = await response.text(); // Get raw text instead of JSON
-      console.error('❌ Error response:', errorText);
-      throw new Error(`HTTP error! Status: ${response.status} - ${errorText}`);
+    // Validate inputs before proceeding
+    if (!validateInputs()) {
+      return;
     }
-    
-    // Check if response has content
-    const responseText = await response.text();
-    console.log('📄 Raw response:', responseText);
-    
-    if (!responseText) {
-      throw new Error('Empty response from server');
-    }
-    
-    // Try to parse JSON
-    let data;
+
+    setLoading(true);
     try {
-      data = JSON.parse(responseText);
-    } catch (parseError) {
-      console.error('❌ JSON parse error:', parseError);
-      console.error('❌ Response text:', responseText);
-      throw new Error(`Invalid JSON response: ${parseError.message}`);
+      console.log('🚀 Making API call to backend...');
+      
+      const API_BASE_URL = process.env.NODE_ENV === 'production' 
+        ? 'https://learn-bloom.vercel.app'  // Your exact backend URL
+        : 'http://localhost:5000';
+
+      console.log('📡 API URL:', `${API_BASE_URL}/api/generate-path`);
+      console.log('📊 Request data:', { goal, level, duration, perDay });
+
+      const response = await fetch(`${API_BASE_URL}/api/generate-path`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({ goal, level, duration, perDay })
+      });
+      
+      console.log('📡 Response status:', response.status);
+      console.log('📡 Response headers:', response.headers);
+      
+      // Check if response is ok
+      if (!response.ok) {
+        const errorText = await response.text(); // Get raw text instead of JSON
+        console.error('❌ Error response:', errorText);
+        throw new Error(`HTTP error! Status: ${response.status} - ${errorText}`);
+      }
+      
+      // Check if response has content
+      const responseText = await response.text();
+      console.log('📄 Raw response:', responseText);
+      
+      if (!responseText) {
+        throw new Error('Empty response from server');
+      }
+      
+      // Try to parse JSON
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error('❌ JSON parse error:', parseError);
+        console.error('❌ Response text:', responseText);
+        throw new Error(`Invalid JSON response: ${parseError.message}`);
+      }
+      
+      console.log('✅ Parsed data:', data);
+      
+      // Rest of your existing code...
+      if (!data.plan || !Array.isArray(data.plan)) {
+        throw new Error('Invalid response format - missing plan array');
+      }
+      
+      const newPlan = data.plan;
+      
+      // Check for duplicates
+      const isDuplicate = savedPaths.some(
+        path => path.goal === goal && path.level === level && path.duration === duration && path.perDay === perDay
+      );
+      
+      if (!isDuplicate) {
+        setSavedPaths([...savedPaths, { goal, level, duration, perDay, plan: newPlan, progress: 0 }]);
+      }
+      
+      setPlanSteps(newPlan);
+      setProgress(0);
+      setSelectedStep(null);
+      setView('path');
+      
+    } catch (err) {
+      console.error('❌ Full error details:', err);
+      setValidationError(`Failed to generate plan: ${err.message}`);
+    } finally {
+      setLoading(false);
     }
-    
-    console.log('✅ Parsed data:', data);
-    
-    // Rest of your existing code...
-    if (!data.plan || !Array.isArray(data.plan)) {
-      throw new Error('Invalid response format - missing plan array');
-    }
-    
-    const newPlan = data.plan;
-    
-    // Check for duplicates
-    const isDuplicate = savedPaths.some(
-      path => path.goal === goal && path.level === level && path.duration === duration && path.perDay === perDay
-    );
-    
-    if (!isDuplicate) {
-      setSavedPaths([...savedPaths, { goal, level, duration, perDay, plan: newPlan, progress: 0 }]);
-    }
-    
-    setPlanSteps(newPlan);
-    setProgress(0);
-    setSelectedStep(null);
-    setView('path');
-    
-  } catch (err) {
-    console.error('❌ Full error details:', err);
-    alert(`Failed to generate plan: ${err.message}`);
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   const completeStep = (stepNumber) => {
     const updatedSteps = planSteps.map(step => 
@@ -234,6 +302,7 @@ const generatePlan = async () => {
     setPlanSteps(path.plan);
     setProgress(path.progress);
     setSelectedStep(null);
+    setValidationError('');
     setView('progress');
   };
 
@@ -241,6 +310,7 @@ const generatePlan = async () => {
     <button
       onClick={() => {
         setSelectedStep(null);
+        setValidationError('');
         setView('home');
       }}
       className="fixed top-4 left-4 bg-green-500 text-white px-3 py-2 text-sm rounded-full shadow-lg z-50 hover:bg-green-600 transition-colors"
@@ -324,15 +394,31 @@ const generatePlan = async () => {
           <BackButton />
           <h2 className="text-2xl font-bold text-green-700 mb-6 text-center mt-8">Create Learning Path</h2>
           
+          {/* Validation Error Message */}
+          {validationError && (
+            <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+              <p className="text-red-700 text-sm font-semibold">⚠️ {validationError}</p>
+            </div>
+          )}
+          
           <div className="space-y-4">
             <div>
               <label className="block text-gray-700 mb-2 font-semibold">Learning Goal</label>
               <input 
                 type="text" 
                 value={goal} 
-                onChange={e => setGoal(e.target.value)} 
+                onChange={e => {
+                  setGoal(e.target.value);
+                  if (validationError && e.target.value.trim()) {
+                    setValidationError('');
+                  }
+                }}
                 placeholder="e.g., Python Programming, Data Analysis, Web Development" 
-                className="w-full border-2 border-gray-300 rounded-lg px-4 py-3 focus:border-green-500 focus:outline-none"
+                className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none transition-colors ${
+                  validationError && !goal.trim() 
+                    ? 'border-red-300 focus:border-red-500' 
+                    : 'border-gray-300 focus:border-green-500'
+                }`}
               />
             </div>
             
@@ -357,9 +443,14 @@ const generatePlan = async () => {
                   value={duration} 
                   min={1} 
                   max={52}
-                  onChange={e => setDuration(+e.target.value)} 
-                  className="w-full border-2 border-gray-300 rounded-lg px-3 py-3 focus:border-green-500 focus:outline-none"
+                  onChange={e => handleDurationChange(e.target.value)}
+                  className={`w-full border-2 rounded-lg px-3 py-3 focus:outline-none transition-colors ${
+                    validationError && (duration < 1 || duration > 52)
+                      ? 'border-red-300 focus:border-red-500' 
+                      : 'border-gray-300 focus:border-green-500'
+                  }`}
                 />
+                <p className="text-xs text-gray-500 mt-1">Max: 52 weeks</p>
               </div>
               
               <div>
@@ -369,16 +460,21 @@ const generatePlan = async () => {
                   value={perDay} 
                   min={1} 
                   max={10}
-                  onChange={e => setPerDay(+e.target.value)} 
-                  className="w-full border-2 border-gray-300 rounded-lg px-3 py-3 focus:border-green-500 focus:outline-none"
+                  onChange={e => handlePerDayChange(e.target.value)}
+                  className={`w-full border-2 rounded-lg px-3 py-3 focus:outline-none transition-colors ${
+                    validationError && (perDay < 1 || perDay > 10)
+                      ? 'border-red-300 focus:border-red-500' 
+                      : 'border-gray-300 focus:border-green-500'
+                  }`}
                   placeholder="Hours"
                 />
+                <p className="text-xs text-gray-500 mt-1">Max: 10 hours</p>
               </div>
             </div>
             
             <button 
               onClick={generatePlan} 
-              disabled={loading || !goal.trim()} 
+              disabled={loading || !goal.trim() || validationError} 
               className="w-full py-4 bg-green-600 text-white rounded-xl shadow-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-semibold text-lg"
             >
               {loading ? (
@@ -606,7 +702,7 @@ const generatePlan = async () => {
                   <div className="flex justify-between items-start">
                     <div className="flex-1">
                       <h3 className="font-semibold text-green-700">{path.goal}</h3>
-                      <p className="text-gray-600 text-sm">{path.level} • {path.duration} weeks • {path.perDay}/day</p>
+                      <p className="text-gray-600 text-sm">{path.level} • {path.duration} weeks • {path.perDay}h/day</p>
                       <div className="mt-2 bg-gray-200 rounded-full h-2">
                         <div 
                           className="bg-green-500 h-2 rounded-full transition-all duration-300" 
