@@ -291,59 +291,31 @@ Each topic should be detailed enough to fill ${perDay} hours of focused learning
     // Step 2: Generate the curriculum outline
     const curriculumTopics = await generateCurriculumOutline(goal, level, totalSteps);
 
-    // Step 3: Create detailed learning path using the curriculum
-    const prompt = `Create a comprehensive ${duration}-week learning curriculum for "${goal}" at ${level} level.
+    // Step 3: Create simplified prompt to avoid truncation
+    const prompt = `Create ${totalSteps} learning steps for "${goal}" (${level} level, ${perDay}h/day).
 
-MANDATORY CURRICULUM STRUCTURE:
-You must create exactly ${totalSteps} days covering these specific topics in order:
+Topics to cover in order:
+${curriculumTopics.map((topic, index) => `${index + 1}. ${topic}`).join('\n')}
 
-${curriculumTopics.map((topic, index) => `Day ${index + 1}: ${topic}`).join('\n')}
-
-ABSOLUTE REQUIREMENTS:
-- Each day must cover ONLY the specific topic assigned to that day
-- Every day must have completely unique content focused on that topic
-- NO overlap between days - each teaches something completely different
-- Each day should thoroughly cover its assigned topic
-- Daily study time: ${perDay} hours per day
-
-For each day, create detailed content specifically for that day's topic:
-
-RESPONSE FORMAT - Return exactly ${totalSteps} steps as JSON array:
+Return JSON array with exactly ${totalSteps} objects:
 [
   {
-    "step": [1-${totalSteps}],
-    "week": [1-${duration}],
-    "dayOfWeek": [1-7],
-    "weekTheme": "[Theme based on week progression]",
-    "label": "Day X: [Use EXACT topic from curriculum list above]",
-    "description": "Learn [today's specific topic] for ${goal}",
-    "details": "Comprehensive explanation of [today's specific topic], why it's crucial for ${goal}, how to master it, and how it fits into your overall ${goal} journey. Focus entirely on today's assigned topic.",
-    "tasks": [
-      "Specific task 1 for [today's exact topic] (XX min)",
-      "Specific task 2 for [today's exact topic] (XX min)",
-      "Specific task 3 for [today's exact topic] (XX min)",
-      "Specific task 4 for [today's exact topic] (XX min)"
-    ],
-    "resources": [
-      "Resource 1 specifically for [today's topic]",
-      "Resource 2 tailored to this concept",
-      "Resource 3 focused on this skill",
-      "Resource 4 for mastering this topic"
-    ],
+    "step": 1,
+    "week": 1,
+    "dayOfWeek": 1,
+    "weekTheme": "Foundation",
+    "label": "Day 1: [topic 1]",
+    "description": "Brief description",
+    "details": "What to learn and why",
+    "tasks": ["Task 1 (20min)", "Task 2 (30min)", "Task 3 (25min)"],
+    "resources": ["Resource 1", "Resource 2", "Resource 3"],
     "estimatedTime": "${perDay} hours",
-    "weeklyGoal": "Master the topics covered this week",
+    "weeklyGoal": "Week 1 goal",
     "completed": false
   }
 ]
 
-CRITICAL INSTRUCTIONS:
-- Day 1 must cover: "${curriculumTopics[0]}"
-- Day 15 must cover: "${curriculumTopics[14] || 'Topic 15'}"
-- Day ${totalSteps} must cover: "${curriculumTopics[totalSteps - 1] || `Topic ${totalSteps}`}"
-- Each day focuses EXCLUSIVELY on its assigned curriculum topic
-- Make every day's content completely different and valuable
-
-Return ONLY the JSON array with ${totalSteps} unique learning experiences.`;
+Each step must cover its assigned topic. Keep content concise but specific.`;
 
     console.log('🤖 Calling OpenAI API to create detailed curriculum...');
 
@@ -352,31 +324,21 @@ Return ONLY the JSON array with ${totalSteps} unique learning experiences.`;
       messages: [
         {
           role: "system",
-          content: `You are an expert curriculum designer who creates learning paths for ANY subject. You have been given a specific curriculum outline with ${totalSteps} unique topics for "${goal}".
-
-Your job is to create detailed daily learning experiences that follow the curriculum EXACTLY:
-- Each day covers only its assigned topic from the curriculum
-- Every day is completely unique and different
-- No generic "practice" or "review" content
-- Each day provides specific, actionable learning for that topic
-
-You understand ${goal} deeply and know how to break it down into ${totalSteps} distinct learning experiences. Follow the curriculum mapping precisely.
-
-Respond with ONLY the JSON array - no markdown, no explanations.`
+          content: `You are an expert curriculum designer. Create exactly ${totalSteps} concise learning steps for "${goal}". Each day must cover its assigned topic from the curriculum. Keep all content brief but specific to avoid response truncation. Return only a valid JSON array.`
         },
         {
           role: "user",
           content: prompt
         }
       ],
-      max_tokens: 4000,
+      max_tokens: Math.min(4000, Math.max(1500, totalSteps * 100)), // Dynamic token limit based on steps
       temperature: 0.1,
     });
 
     console.log('📄 OpenAI response received');
     const response = completion.choices[0].message.content;
 
-    // Parse JSON response
+    // Enhanced JSON parsing with truncation handling
     let plan;
     try {
       const cleanResponse = response.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
@@ -384,19 +346,91 @@ Respond with ONLY the JSON array - no markdown, no explanations.`
       console.log('✅ JSON parsed successfully');
     } catch (parseError) {
       console.error('❌ JSON parsing failed:', parseError.message);
-      console.log('Response preview:', response.substring(0, 500));
+      console.log('📊 Response length:', response.length);
+      console.log('📄 Response preview:', response.substring(0, 300));
+      console.log('📄 Response ending:', response.substring(Math.max(0, response.length - 300)));
       
-      // Try to extract JSON array
-      const jsonMatch = response.match(/\[[\s\S]*\]/);
-      if (jsonMatch) {
-        try {
-          plan = JSON.parse(jsonMatch[0]);
-          console.log('✅ JSON extracted successfully');
-        } catch (extractError) {
-          throw new Error(`Could not parse OpenAI response: ${parseError.message}`);
+      try {
+        // Strategy 1: Try to extract and fix truncated JSON
+        let jsonString = response.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+        
+        // If JSON is truncated, find the last complete object
+        if (!jsonString.endsWith(']') || parseError.message.includes('Unterminated')) {
+          console.log('⚠️ JSON appears truncated, attempting to salvage...');
+          
+          // Find the last complete object
+          const lastCompleteObject = jsonString.lastIndexOf('},');
+          if (lastCompleteObject > 0) {
+            // Cut off at last complete object and close the array
+            jsonString = jsonString.substring(0, lastCompleteObject + 1) + '\n]';
+            console.log('✅ Truncated to last complete object');
+          } else {
+            // Try to find any complete objects
+            const objects = [];
+            const objectPattern = /\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/g;
+            let match;
+            while ((match = objectPattern.exec(response)) !== null) {
+              try {
+                const obj = JSON.parse(match[0]);
+                objects.push(obj);
+              } catch (objError) {
+                // Skip invalid objects
+              }
+            }
+            
+            if (objects.length > 0) {
+              plan = objects;
+              console.log(`✅ Extracted ${objects.length} valid objects from truncated response`);
+            } else {
+              throw new Error('No valid objects found in truncated response');
+            }
+          }
         }
-      } else {
-        throw new Error('No JSON array found in OpenAI response');
+        
+        // If we modified jsonString, try parsing it
+        if (!plan) {
+          plan = JSON.parse(jsonString);
+          console.log('✅ Successfully parsed repaired JSON');
+        }
+        
+      } catch (repairError) {
+        console.error('❌ JSON repair failed:', repairError.message);
+        
+        // Strategy 2: Request a shorter response with fewer days
+        console.log('🔄 Requesting shorter response due to truncation...');
+        
+        const shorterSteps = Math.min(14, totalSteps); // Limit to 2 weeks max for retry
+        const shorterPrompt = `Create exactly ${shorterSteps} learning steps for "${goal}" at ${level} level.
+
+Use these topics (first ${shorterSteps} only):
+${curriculumTopics.slice(0, shorterSteps).map((topic, index) => `Day ${index + 1}: ${topic}`).join('\n')}
+
+Return exactly ${shorterSteps} steps as a valid JSON array. Keep responses concise to avoid truncation.`;
+
+        try {
+          const shorterCompletion = await openai.chat.completions.create({
+            model: "gpt-4o-mini",
+            messages: [
+              {
+                role: "system",
+                content: `Create exactly ${shorterSteps} concise learning steps. Keep all content brief to avoid response truncation. Return only valid JSON array.`
+              },
+              {
+                role: "user",
+                content: shorterPrompt
+              }
+            ],
+            max_tokens: 2000, // Reduced token limit
+            temperature: 0.1,
+          });
+
+          const shorterResponse = shorterCompletion.choices[0].message.content.trim();
+          plan = JSON.parse(shorterResponse.replace(/```json\s*/g, '').replace(/```\s*/g, ''));
+          console.log(`✅ Successfully generated ${plan.length} steps with shorter response`);
+          
+        } catch (shorterError) {
+          throw new Error(`Could not parse OpenAI response after multiple attempts: ${parseError.message}`);
+        }
       }
     }
 
