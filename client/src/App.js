@@ -107,7 +107,7 @@ function App() {
   }, []);
 
   // Generate learning path by calling backend
-  const generatePlan = async () => {
+const generatePlan = async () => {
   if (!goal.trim()) {
     alert('Please enter a learning goal');
     return;
@@ -116,12 +116,15 @@ function App() {
   setLoading(true);
   try {
     console.log('🚀 Making API call to backend...');
-      
-      const API_BASE_URL = process.env.NODE_ENV === 'production' 
-      ? 'learn-bloom.vercel.app'  // ← Replace with your actual backend URL
+    
+    const API_BASE_URL = process.env.NODE_ENV === 'production' 
+      ? 'https://learn-bloom.vercel.app'  // Your exact backend URL
       : 'http://localhost:5000';
 
-const response = await fetch(`${API_BASE_URL}/api/generate-path`, {
+    console.log('📡 API URL:', `${API_BASE_URL}/api/generate-path`);
+    console.log('📊 Request data:', { goal, level, duration, perDay });
+
+    const response = await fetch(`${API_BASE_URL}/api/generate-path`, {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
@@ -129,38 +132,60 @@ const response = await fetch(`${API_BASE_URL}/api/generate-path`, {
       },
       body: JSON.stringify({ goal, level, duration, perDay })
     });
-      
-      console.log('📡 Response status:', response.status);
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `HTTP error! Status: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      console.log('✅ Received data:', data);
-      
-      if (!data.plan || !Array.isArray(data.plan)) {
-        throw new Error('Invalid response format');
-      }
-      
-      const newPlan = data.plan;
-      
-      // Check for duplicates
-      const isDuplicate = savedPaths.some(
-        path => path.goal === goal && path.level === level && path.duration === duration && path.perDay === perDay
-      );
-      
-      if (!isDuplicate) {
-        setSavedPaths([...savedPaths, { goal, level, duration, perDay, plan: newPlan, progress: 0 }]);
-      }
-      
-      setPlanSteps(newPlan);
-      setProgress(0);
-      setSelectedStep(null);
-      setView('path');
-    } catch (err) {
-    console.error('❌ Error details:', err);
+    
+    console.log('📡 Response status:', response.status);
+    console.log('📡 Response headers:', response.headers);
+    
+    // Check if response is ok
+    if (!response.ok) {
+      const errorText = await response.text(); // Get raw text instead of JSON
+      console.error('❌ Error response:', errorText);
+      throw new Error(`HTTP error! Status: ${response.status} - ${errorText}`);
+    }
+    
+    // Check if response has content
+    const responseText = await response.text();
+    console.log('📄 Raw response:', responseText);
+    
+    if (!responseText) {
+      throw new Error('Empty response from server');
+    }
+    
+    // Try to parse JSON
+    let data;
+    try {
+      data = JSON.parse(responseText);
+    } catch (parseError) {
+      console.error('❌ JSON parse error:', parseError);
+      console.error('❌ Response text:', responseText);
+      throw new Error(`Invalid JSON response: ${parseError.message}`);
+    }
+    
+    console.log('✅ Parsed data:', data);
+    
+    // Rest of your existing code...
+    if (!data.plan || !Array.isArray(data.plan)) {
+      throw new Error('Invalid response format - missing plan array');
+    }
+    
+    const newPlan = data.plan;
+    
+    // Check for duplicates
+    const isDuplicate = savedPaths.some(
+      path => path.goal === goal && path.level === level && path.duration === duration && path.perDay === perDay
+    );
+    
+    if (!isDuplicate) {
+      setSavedPaths([...savedPaths, { goal, level, duration, perDay, plan: newPlan, progress: 0 }]);
+    }
+    
+    setPlanSteps(newPlan);
+    setProgress(0);
+    setSelectedStep(null);
+    setView('path');
+    
+  } catch (err) {
+    console.error('❌ Full error details:', err);
     alert(`Failed to generate plan: ${err.message}`);
   } finally {
     setLoading(false);

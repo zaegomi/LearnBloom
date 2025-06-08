@@ -14,9 +14,12 @@ const PORT = process.env.PORT || 5000;
 app.use(cors({
   origin: [
     'http://localhost:3000',  // Local development
-    'learn-bloom-client.vercel.app'  // ← Replace with your actual frontend URL
+    'https://learn-bloom-client.vercel.app',  // Your exact frontend URL
+    /https:\/\/.*\.vercel\.app$/  // Allow any Vercel app (temporary for testing)
   ],
-  credentials: true
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Accept', 'Authorization']
 }));
 app.use(express.json());
 
