@@ -174,254 +174,191 @@ app.post('/api/generate-path', async (req, res) => {
     const totalSteps = duration * 7; // 7 days per week
     console.log(`🎯 Generating ${totalSteps} detailed steps for "${goal}" (${level} level) - ${duration} weeks × 7 days = ${totalSteps} days`);
 
-    // Optimized generation strategy based on duration
-    if (totalSteps <= 7) {
-      // Single week - generate all at once
-      console.log('📚 Using single generation for 1 week...');
-      
-      const prompt = `Create exactly ${totalSteps} learning steps for "${goal}" at ${level} level.
-Duration: ${duration} week, ${perDay} hours per day.
+    // FAST SINGLE-CALL APPROACH for all durations
+    console.log('⚡ Using fast single-call generation for all durations...');
+    
+    // Optimized prompt that generates all days in one call
+    const prompt = `Create exactly ${totalSteps} learning steps for "${goal}" at ${level} level.
 
-Return JSON array of ${totalSteps} objects:
-[{"step":1,"week":1,"dayOfWeek":1,"weekTheme":"Foundation","label":"Day 1: [Topic]","description":"Brief","details":"What to learn","tasks":["Task 1 (20min)","Task 2 (25min)","Task 3 (15min)"],"resources":["Resource 1","Resource 2","Resource 3"],"estimatedTime":"${perDay} hours","weeklyGoal":"Week goal","completed":false}]
+Duration: ${duration} weeks (${totalSteps} days), ${perDay} hours per day.
 
-Make each day unique and educational.`;
+Create a structured ${duration}-week program with these themes:
+Week 1: Foundation & Setup
+Week 2: Core Concepts  
+Week 3: Practical Application
+Week 4+: Advanced Techniques
 
+Each step format:
+{"step": [number], "week": [week_number], "dayOfWeek": [1-7], "weekTheme": "[theme]", "label": "Day [number]: [specific_topic]", "description": "Brief description", "details": "What to learn and why", "tasks": ["Task 1 (20min)", "Task 2 (25min)", "Task 3 (15min)"], "resources": ["Resource 1", "Resource 2", "Resource 3"], "estimatedTime": "${perDay} hours", "weeklyGoal": "Week goal", "completed": false}
+
+Return JSON array of exactly ${totalSteps} objects. Make each day unique and specific to ${goal}.`;
+
+    try {
       const completion = await openai.chat.completions.create({
         model: "gpt-4o-mini",
-        messages: [{ role: "user", content: prompt }],
-        max_tokens: 2000,
+        messages: [
+          {
+            role: "system",
+            content: `Create exactly ${totalSteps} unique learning steps for "${goal}". Each day must be specific and different. Keep content concise but educational. Return only valid JSON array.`
+          },
+          {
+            role: "user",
+            content: prompt
+          }
+        ],
+        max_tokens: Math.min(4000, totalSteps * 100), // Dynamic token limit
         temperature: 0.1,
       });
 
+      console.log('📄 OpenAI response received for single-call generation');
       const response = completion.choices[0].message.content;
+
+      // Enhanced JSON parsing with repair
       let plan;
-      
       try {
         const cleanResponse = response.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
         plan = JSON.parse(cleanResponse);
+        console.log(`✅ Single-call generation parsed successfully: ${plan.length} steps`);
       } catch (parseError) {
-        throw new Error(`JSON parsing failed: ${parseError.message}`);
-      }
-
-      if (!Array.isArray(plan) || plan.length === 0) {
-        throw new Error('Invalid learning path generated');
-      }
-
-      console.log(`✅ Generated ${plan.length} steps using single generation`);
-
-      return res.json({ 
-        plan,
-        metadata: {
-          goal, level, duration, perDay,
-          totalSteps: plan.length,
-          generatedAt: new Date().toISOString(),
-          generatedBy: 'OpenAI Single Generation',
-          model: 'gpt-4o-mini'
-        }
-      });
-
-    } else {
-      // Multiple weeks - optimized batch generation
-      console.log('📦 Using optimized batch generation for multiple weeks...');
-      
-      let allSteps = [];
-      const weeksToGenerate = duration;
-      
-      // Generate 2 weeks at a time for better efficiency
-      const batchSize = 2;
-      const batches = Math.ceil(weeksToGenerate / batchSize);
-      
-      for (let batchIndex = 0; batchIndex < batches; batchIndex++) {
-        const startWeek = (batchIndex * batchSize) + 1;
-        const endWeek = Math.min(startWeek + batchSize - 1, weeksToGenerate);
-        const weeksInBatch = endWeek - startWeek + 1;
-        const daysInBatch = weeksInBatch * 7;
-        const startDay = (batchIndex * batchSize * 7) + 1;
+        console.error('❌ JSON parsing failed:', parseError.message);
+        console.log('📊 Response length:', response.length);
         
-        console.log(`📚 Generating batch ${batchIndex + 1}/${batches}: Weeks ${startWeek}-${endWeek} (${daysInBatch} days)`);
-        
-        // Optimized prompt for batch generation
-        const batchPrompt = `Create exactly ${daysInBatch} learning steps for "${goal}" at ${level} level.
-
-This covers weeks ${startWeek}-${endWeek} of a ${duration}-week program.
-${perDay} hours per day study time.
-
-Week themes:
-${startWeek === 1 ? "Week 1: Foundation & Setup" : startWeek === 2 ? "Week 2: Core Concepts" : startWeek === 3 ? "Week 3: Practical Application" : `Week ${startWeek}: Advanced Techniques`}
-${endWeek > startWeek ? (endWeek === 2 ? "Week 2: Core Concepts" : endWeek === 3 ? "Week 3: Practical Application" : `Week ${endWeek}: Advanced Techniques`) : ""}
-
-Return JSON array of exactly ${daysInBatch} objects (7 days per week):
-[{"step":${startDay},"week":${startWeek},"dayOfWeek":1,"weekTheme":"Foundation","label":"Day ${startDay}: [Specific Topic]","description":"Brief description","details":"What to learn and why","tasks":["Task 1 (20min)","Task 2 (25min)","Task 3 (15min)"],"resources":["Resource 1","Resource 2","Resource 3"],"estimatedTime":"${perDay} hours","weeklyGoal":"Week goal","completed":false}]
-
-Make each day cover a unique ${goal} topic. Be specific and educational.`;
-
+        // Try to repair JSON
         try {
-          const completion = await openai.chat.completions.create({
-            model: "gpt-4o-mini",
-            messages: [
-              {
-                role: "system",
-                content: `Create exactly ${daysInBatch} unique learning steps for "${goal}". Each day must be specific and different. Keep content concise but educational. Return only valid JSON array.`
-              },
-              {
-                role: "user",
-                content: batchPrompt
-              }
-            ],
-            max_tokens: Math.min(4000, daysInBatch * 200), // Dynamic token allocation
-            temperature: 0.1,
-          });
-
-          console.log(`📄 OpenAI response received for batch ${batchIndex + 1}`);
-          const response = completion.choices[0].message.content;
-
-          // Parse batch response
-          let batchSteps;
-          try {
-            const cleanResponse = response.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
-            batchSteps = JSON.parse(cleanResponse);
-            console.log(`✅ Batch ${batchIndex + 1} parsed successfully: ${batchSteps.length} steps`);
-          } catch (parseError) {
-            console.error(`❌ Batch ${batchIndex + 1} JSON parsing failed:`, parseError.message);
-            
-            // Try to salvage what we can
-            try {
-              const jsonString = response.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
-              const lastCompleteObject = jsonString.lastIndexOf('},');
-              if (lastCompleteObject > 0) {
-                const repairedJson = jsonString.substring(0, lastCompleteObject + 1) + '\n]';
-                batchSteps = JSON.parse(repairedJson);
-                console.log(`✅ Batch ${batchIndex + 1} repaired: ${batchSteps.length} steps salvaged`);
-              } else {
-                throw new Error('Could not repair batch JSON');
-              }
-            } catch (repairError) {
-              console.error(`❌ Batch ${batchIndex + 1} repair failed, generating fallback steps`);
-              batchSteps = [];
+          let jsonString = response.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+          
+          // If truncated, try to salvage complete objects
+          if (!jsonString.endsWith(']') || parseError.message.includes('Unterminated')) {
+            console.log('⚠️ JSON appears truncated, attempting to salvage...');
+            const lastCompleteObject = jsonString.lastIndexOf('},');
+            if (lastCompleteObject > 0) {
+              jsonString = jsonString.substring(0, lastCompleteObject + 1) + '\n]';
+              console.log('✅ Truncated to last complete object');
             }
           }
-
-          // Ensure we have the right number of steps for this batch
-          if (!Array.isArray(batchSteps) || batchSteps.length !== daysInBatch) {
-            console.warn(`⚠️ Batch ${batchIndex + 1} returned ${batchSteps?.length || 0} steps, expected ${daysInBatch}. Generating fallback.`);
-            
-            batchSteps = [];
-            for (let dayIndex = 0; dayIndex < daysInBatch; dayIndex++) {
-              const stepNumber = startDay + dayIndex;
-              const weekNumber = Math.ceil(stepNumber / 7);
-              const dayOfWeek = ((stepNumber - 1) % 7) + 1;
-              
-              const weekThemes = ["Foundation & Setup", "Core Concepts", "Practical Application", "Advanced Techniques"];
-              const theme = weekThemes[Math.min(weekNumber - 1, weekThemes.length - 1)];
-              
-              batchSteps.push({
-                step: stepNumber,
-                week: weekNumber,
-                dayOfWeek: dayOfWeek,
-                weekTheme: theme,
-                label: `Day ${stepNumber}: ${goal} Topic ${stepNumber}`,
-                description: `Learn ${goal} concepts for day ${stepNumber}`,
-                details: `Focus on ${goal} skills and build understanding through practice.`,
-                tasks: [`Study ${goal} concepts (20min)`, `Practice exercises (25min)`, `Review notes (15min)`],
-                resources: [`${goal} documentation`, `Online tutorials`, `Practice examples`],
-                estimatedTime: `${perDay} hours`,
-                weeklyGoal: `Master week ${weekNumber} ${goal} concepts`,
-                completed: false
-              });
-            }
-          }
-
-          // Validate and fix step numbering
-          batchSteps = batchSteps.map((step, index) => {
-            const correctStepNumber = startDay + index;
-            const weekNumber = Math.ceil(correctStepNumber / 7);
-            const dayOfWeek = ((correctStepNumber - 1) % 7) + 1;
-            
+          
+          plan = JSON.parse(jsonString);
+          console.log(`✅ Successfully parsed repaired JSON: ${plan.length} steps`);
+          
+        } catch (repairError) {
+          console.error('❌ JSON repair failed, using template fallback');
+          
+          // Generate template-based fallback
+          plan = [];
+          for (let i = 1; i <= totalSteps; i++) {
+            const weekNumber = Math.ceil(i / 7);
+            const dayOfWeek = ((i - 1) % 7) + 1;
             const weekThemes = ["Foundation & Setup", "Core Concepts", "Practical Application", "Advanced Techniques"];
             const theme = weekThemes[Math.min(weekNumber - 1, weekThemes.length - 1)];
             
-            return {
-              step: correctStepNumber,
+            plan.push({
+              step: i,
               week: weekNumber,
               dayOfWeek: dayOfWeek,
               weekTheme: theme,
-              label: step.label || `Day ${correctStepNumber}: ${goal} Learning`,
-              description: step.description || `Learn ${goal} concepts`,
-              details: step.details || `Study ${goal} and practice the skills.`,
-              tasks: Array.isArray(step.tasks) ? step.tasks : [`Study ${goal} (20min)`, `Practice exercises (25min)`, `Review notes (15min)`],
-              resources: Array.isArray(step.resources) ? step.resources : [`${goal} documentation`, `Online tutorials`, `Practice examples`],
+              label: `Day ${i}: ${goal} Topic ${i}`,
+              description: `Learn ${goal} concepts for day ${i}`,
+              details: `Focus on ${goal} skills and build understanding through practice.`,
+              tasks: [`Study ${goal} concepts (20min)`, `Practice exercises (25min)`, `Review notes (15min)`],
+              resources: [`${goal} documentation`, `Online tutorials`, `Practice examples`],
               estimatedTime: `${perDay} hours`,
-              weeklyGoal: step.weeklyGoal || `Master week ${weekNumber} ${goal} concepts`,
+              weeklyGoal: `Master week ${weekNumber} ${goal} concepts`,
               completed: false
-            };
-          });
-
-          allSteps = allSteps.concat(batchSteps);
-          console.log(`✅ Batch ${batchIndex + 1} completed. Total steps so far: ${allSteps.length}`);
-          
-        } catch (batchError) {
-          console.error(`❌ Batch ${batchIndex + 1} failed:`, batchError.message);
-          throw new Error(`Failed to generate learning path batch ${batchIndex + 1}: ${batchError.message}`);
+            });
+          }
+          console.log(`✅ Generated ${plan.length} fallback template steps`);
         }
       }
-      
-      // Final validation - ensure we have exactly the right number of steps
-      if (allSteps.length !== totalSteps) {
-        console.warn(`⚠️ Generated ${allSteps.length} steps but expected ${totalSteps}. Adjusting...`);
+
+      // Validate and ensure correct structure
+      if (!Array.isArray(plan)) {
+        throw new Error('OpenAI response is not an array');
+      }
+
+      if (plan.length === 0) {
+        throw new Error('OpenAI returned empty learning path');
+      }
+
+      // Ensure we have the right number of steps
+      if (plan.length !== totalSteps) {
+        console.warn(`⚠️ Expected ${totalSteps} steps, got ${plan.length}. Adjusting...`);
         
-        if (allSteps.length < totalSteps) {
+        if (plan.length > totalSteps) {
+          plan = plan.slice(0, totalSteps);
+        } else if (plan.length < totalSteps) {
           // Add missing steps
-          const missingSteps = totalSteps - allSteps.length;
-          console.log(`➕ Adding ${missingSteps} missing steps...`);
-          
+          const missingSteps = totalSteps - plan.length;
           for (let i = 0; i < missingSteps; i++) {
-            const stepNumber = allSteps.length + 1 + i;
+            const stepNumber = plan.length + 1 + i;
             const weekNumber = Math.ceil(stepNumber / 7);
             const dayOfWeek = ((stepNumber - 1) % 7) + 1;
-            
             const weekThemes = ["Foundation & Setup", "Core Concepts", "Practical Application", "Advanced Techniques"];
             const theme = weekThemes[Math.min(weekNumber - 1, weekThemes.length - 1)];
             
-            allSteps.push({
+            plan.push({
               step: stepNumber,
               week: weekNumber,
               dayOfWeek: dayOfWeek,
               weekTheme: theme,
               label: `Day ${stepNumber}: ${goal} Additional Topic`,
               description: `Learn additional ${goal} concepts`,
-              details: `Focus on expanding your ${goal} knowledge with practical exercises.`,
+              details: `Focus on expanding your ${goal} knowledge.`,
               tasks: [`Study ${goal} concepts (20min)`, `Practice exercises (25min)`, `Review notes (15min)`],
-              resources: [`${goal} documentation`, `Tutorials`, `Practice projects`],
+              resources: [`${goal} documentation`, `Tutorials`, `Examples`],
               estimatedTime: `${perDay} hours`,
-              weeklyGoal: `Master week ${weekNumber} ${goal} concepts`,
+              weeklyGoal: `Master week ${weekNumber} concepts`,
               completed: false
             });
           }
-        } else if (allSteps.length > totalSteps) {
-          // Remove extra steps
-          allSteps = allSteps.slice(0, totalSteps);
         }
       }
-      
-      console.log(`✅ Successfully generated exactly ${allSteps.length} steps using optimized batch generation`);
-      
-      // Send final response
+
+      // Ensure all steps have required fields with correct numbering
+      plan = plan.map((step, index) => {
+        const correctStepNumber = index + 1;
+        const weekNumber = Math.ceil(correctStepNumber / 7);
+        const dayOfWeek = ((correctStepNumber - 1) % 7) + 1;
+        
+        const weekThemes = ["Foundation & Setup", "Core Concepts", "Practical Application", "Advanced Techniques"];
+        const theme = weekThemes[Math.min(weekNumber - 1, weekThemes.length - 1)];
+        
+        return {
+          step: correctStepNumber,
+          week: weekNumber,
+          dayOfWeek: dayOfWeek,
+          weekTheme: theme,
+          label: step.label || `Day ${correctStepNumber}: ${goal} Learning`,
+          description: step.description || `Learn ${goal} concepts`,
+          details: step.details || `Study ${goal} and practice skills.`,
+          tasks: Array.isArray(step.tasks) ? step.tasks : [`Study ${goal} (20min)`, `Practice (25min)`, `Review (15min)`],
+          resources: Array.isArray(step.resources) ? step.resources : [`${goal} documentation`, `Tutorials`, `Examples`],
+          estimatedTime: `${perDay} hours`,
+          weeklyGoal: step.weeklyGoal || `Master week ${weekNumber} concepts`,
+          completed: false
+        };
+      });
+
+      console.log(`✅ Successfully generated exactly ${plan.length} steps using fast single-call generation`);
+
+      // Send response
       res.json({ 
-        plan: allSteps,
+        plan,
         metadata: {
           goal,
           level,
           duration,
           perDay,
-          totalSteps: allSteps.length,
+          totalSteps: plan.length,
           generatedAt: new Date().toISOString(),
-          generatedBy: 'OpenAI Optimized Batch Generation',
+          generatedBy: 'OpenAI Fast Single-Call Generation',
           model: 'gpt-4o-mini',
-          batchesUsed: batches,
           corsEnabled: true
         }
       });
+      
+    } catch (openaiError) {
+      console.error('❌ OpenAI API call failed:', openaiError.message);
+      throw openaiError;
     }
 
   } catch (error) {
