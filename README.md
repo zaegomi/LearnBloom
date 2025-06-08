@@ -1,6 +1,6 @@
 # 🌱 LearnBloom AI Learning Path Builder
 
-An intelligent, AI-powered learning path generator that creates personalized, week-by-week study plans using OpenAI's GPT technology. Built with React and Node.js for a seamless learning experience.
+An intelligent, AI-powered learning path generator that creates personalized, week-by-week study plans using OpenAI's GPT technology. Built with React and Node.js for a seamless learning experience!
 
 ![LearnBloom Banner](https://img.shields.io/badge/LearnBloom-AI%20Learning%20Path%20Builder-green?style=for-the-badge&logo=react)
 
