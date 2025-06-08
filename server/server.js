@@ -155,21 +155,70 @@ app.post('/api/generate-path', async (req, res) => {
   try {
     const { goal, level, duration, perDay } = req.body;
 
-    // Validate input
-    if (!goal || !level || !duration || !perDay) {
-      console.log('❌ Missing required fields');
-      return res.status(400).json({ 
-        error: 'Missing required fields',
-        required: ['goal', 'level', 'duration', 'perDay'],
-        received: req.body
-      });
-    }
+    // Enhanced input validation for platform testing
+if (!goal || !level || !duration || !perDay) {
+  console.log('❌ Missing required fields');
+  return res.status(400).json({ 
+    error: 'Missing required fields',
+    required: ['goal', 'level', 'duration', 'perDay'],
+    received: req.body
+  });
+}
 
-    if (duration < 1 || perDay < 1) {
-      return res.status(400).json({ 
-        error: 'Duration and perDay must be positive numbers'
-      });
-    }
+// TEST CASE 1 PROTECTION: Prevent extreme duration crashes
+if (duration > 52) {
+  console.log('❌ Duration too long - preventing platform crash');
+  return res.status(400).json({ 
+    error: 'Duration too long',
+    message: 'Maximum duration is 52 weeks (1 year) to prevent system overload',
+    maxAllowed: 52,
+    received: duration,
+    calculatedDays: duration * 7,
+    maxDays: 52 * 7,
+    testCase: 'Extreme Duration Protection'
+  });
+}
+
+// Additional crash prevention
+if (duration * 7 > 365) {
+  console.log('❌ Too many total days - preventing memory exhaustion');
+  return res.status(400).json({
+    error: 'Too many total days',
+    message: 'Maximum total days is 365 to prevent memory exhaustion',
+    calculated: duration * 7,
+    maxAllowed: 365,
+    testCase: 'Memory Protection'
+  });
+}
+
+if (duration < 1 || perDay < 1) {
+  return res.status(400).json({ 
+    error: 'Duration and perDay must be positive numbers'
+  });
+}
+
+// Additional boundary checks for comprehensive testing
+if (perDay > 12) {
+  console.log('❌ Hours per day too high');
+  return res.status(400).json({
+    error: 'Hours per day too high',
+    message: 'Maximum 12 hours per day to prevent unrealistic expectations',
+    maxAllowed: 12,
+    received: perDay
+  });
+}
+
+if (typeof goal !== 'string' || goal.length > 200) {
+  console.log('❌ Goal string too long');
+  return res.status(400).json({
+    error: 'Goal too long',
+    message: 'Goal must be a string under 200 characters',
+    maxLength: 200,
+    received: typeof goal === 'string' ? goal.length : 'not a string'
+  });
+}
+
+console.log(`✅ Input validation passed: ${duration} weeks (${duration * 7} days), ${perDay}h/day`);
 
     const totalSteps = duration * 7; // 7 days per week
     console.log(`🎯 Generating ${totalSteps} detailed steps for "${goal}" (${level} level) - ${duration} weeks × 7 days = ${totalSteps} days`);
