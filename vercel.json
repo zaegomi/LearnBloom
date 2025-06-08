@@ -10,7 +10,10 @@
     },
     {
       "src": "server/server.js",
-      "use": "@vercel/node"
+      "use": "@vercel/node",
+      "config": {
+        "maxDuration": 30
+      }
     }
   ],
   "routes": [
@@ -22,10 +25,5 @@
       "src": "/(.*)",
       "dest": "/client/build/$1"
     }
-  ],
-  "functions": {
-    "server/server.js": {
-      "maxDuration": 30
-    }
-  }
+  ]
 }
