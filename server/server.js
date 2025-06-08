@@ -1,4 +1,11 @@
-console.log('🚀 Starting LearnBloom server with guaranteed CORS...');
+console.log('🚀 Starting LearnBloom server with bulletproof CORS...');
+
+// Enhanced environment loading
+console.log('🔧 Environment check:', {
+  NODE_ENV: process.env.NODE_ENV,
+  hasOpenAIKey: !!process.env.OPENAI_API_KEY,
+  keyStart: process.env.OPENAI_API_KEY?.substring(0, 8) + '...'
+});
 
 require('dotenv').config({ path: '../.env' });
 const express = require('express');
@@ -26,65 +33,70 @@ if (process.env.OPENAI_API_KEY) {
   console.error('❌ Please add your OpenAI API key to the .env file');
 }
 
-// CORS function to add to every response
-const addCorsHeaders = (res) => {
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Accept, Authorization, X-Requested-With');
-  res.header('Access-Control-Allow-Credentials', 'true');
-};
-
-// Middleware that adds CORS to every response
+// BULLETPROOF CORS - Set headers on EVERY response
 app.use((req, res, next) => {
+  // Set CORS headers immediately
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Accept, Authorization, X-Requested-With');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Max-Age', '86400');
+
   console.log(`📡 ${req.method} ${req.url} from ${req.headers.origin || 'no-origin'}`);
   
-  // Add CORS headers to every response
-  addCorsHeaders(res);
-  
-  // Handle preflight OPTIONS requests
+  // Handle OPTIONS immediately
   if (req.method === 'OPTIONS') {
-    console.log('✅ Handling OPTIONS preflight request');
-    return res.sendStatus(200);
+    console.log('✅ OPTIONS preflight - returning 200');
+    res.status(200).end();
+    return;
   }
   
   next();
 });
 
 // JSON parsing middleware
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 
 console.log('⚙️ Middleware configured');
 console.log('🛣️ Setting up routes...');
 
-// Root route
+// Root route with enhanced debugging
 app.get('/', (req, res) => {
-  addCorsHeaders(res);
+  console.log('🏠 Root route hit');
   res.json({ 
     message: 'LearnBloom AI Learning Path Builder',
     status: 'Server running',
     hasOpenAI: !!openai,
     apiKeyConfigured: !!process.env.OPENAI_API_KEY,
     timestamp: new Date().toISOString(),
-    corsEnabled: true
+    corsEnabled: true,
+    debug: {
+      nodeEnv: process.env.NODE_ENV,
+      headers: req.headers.origin
+    }
   });
 });
 
-// Health check
+// Health check with enhanced debugging
 app.get('/health', (req, res) => {
-  addCorsHeaders(res);
+  console.log('🏥 Health check hit');
   res.json({ 
     status: 'healthy',
     uptime: process.uptime(),
     hasOpenAI: !!openai,
     apiKeyConfigured: !!process.env.OPENAI_API_KEY,
     timestamp: new Date().toISOString(),
-    corsEnabled: true
+    corsEnabled: true,
+    debug: {
+      nodeEnv: process.env.NODE_ENV,
+      origin: req.headers.origin
+    }
   });
 });
 
 // API test
 app.get('/api/test', (req, res) => {
-  addCorsHeaders(res);
+  console.log('🧪 API test hit');
   res.json({ 
     message: 'API working perfectly!',
     hasApiKey: !!process.env.OPENAI_API_KEY,
@@ -98,7 +110,6 @@ app.get('/api/test', (req, res) => {
 // OpenAI connection test
 app.get('/api/test-openai', async (req, res) => {
   console.log('🤖 Testing OpenAI connection...');
-  addCorsHeaders(res);
   
   if (!openai) {
     return res.status(500).json({ 
@@ -137,8 +148,6 @@ app.get('/api/test-openai', async (req, res) => {
 app.post('/api/generate-path', async (req, res) => {
   console.log('📝 Learning path generation requested (Optimized)');
   console.log('📊 Request data:', req.body);
-  
-  addCorsHeaders(res);
 
   // Check if OpenAI is available - REQUIRED
   if (!openai) {
