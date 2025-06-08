@@ -54,17 +54,6 @@ app.use((req, res, next) => {
 app.use(express.json());
 
 console.log('⚙️ Middleware configured');
-
-app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Accept, Authorization');
-  if (req.method === 'OPTIONS') {
-    return res.sendStatus(200);
-  }
-  next();
-});
-
 console.log('🛣️ Setting up routes...');
 
 // Root route
@@ -571,19 +560,24 @@ Make each day unique and educational.`;
 
 console.log('✅ Routes configured successfully');
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`\n🎉 LearnBloom Server Ready with Optimized Token Usage!`);
-  console.log(`🌐 Server: http://localhost:${PORT}`);
-  console.log(`📊 Health: http://localhost:${PORT}/health`);
-  console.log(`🧪 API Test: http://localhost:${PORT}/api/test`);
-  console.log(`🤖 OpenAI Test: http://localhost:${PORT}/api/test-openai`);
-  
-  if (!openai) {
-    console.log(`\n❌ WARNING: OpenAI not configured!`);
-    console.log(`   Add OPENAI_API_KEY to your .env file to enable learning path generation.`);
-  } else {
-    console.log(`\n💡 Ready to generate AI-powered learning paths with chunked generation!`);
-  }
-  console.log('');
-});
+// For Vercel deployment
+module.exports = app;
+
+// Start server for local development
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`\n🎉 LearnBloom Server Ready with Optimized Token Usage!`);
+    console.log(`🌐 Server: http://localhost:${PORT}`);
+    console.log(`📊 Health: http://localhost:${PORT}/health`);
+    console.log(`🧪 API Test: http://localhost:${PORT}/api/test`);
+    console.log(`🤖 OpenAI Test: http://localhost:${PORT}/api/test-openai`);
+    
+    if (!openai) {
+      console.log(`\n❌ WARNING: OpenAI not configured!`);
+      console.log(`   Add OPENAI_API_KEY to your .env file to enable learning path generation.`);
+    } else {
+      console.log(`\n💡 Ready to generate AI-powered learning paths with chunked generation!`);
+    }
+    console.log('');
+  });
+}
