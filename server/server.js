@@ -59,7 +59,7 @@ console.log('🛣️ Setting up routes...');
 
 // Root route
 app.get('/', (req, res) => {
-  addCorsHeaders(res); // Extra CORS headers for safety
+  addCorsHeaders(res);
   res.json({ 
     message: 'LearnBloom AI Learning Path Builder',
     status: 'Server running',
@@ -72,7 +72,7 @@ app.get('/', (req, res) => {
 
 // Health check
 app.get('/health', (req, res) => {
-  addCorsHeaders(res); // Extra CORS headers for safety
+  addCorsHeaders(res);
   res.json({ 
     status: 'healthy',
     uptime: process.uptime(),
@@ -85,7 +85,7 @@ app.get('/health', (req, res) => {
 
 // API test
 app.get('/api/test', (req, res) => {
-  addCorsHeaders(res); // Extra CORS headers for safety
+  addCorsHeaders(res);
   res.json({ 
     message: 'API working perfectly!',
     hasApiKey: !!process.env.OPENAI_API_KEY,
@@ -99,7 +99,7 @@ app.get('/api/test', (req, res) => {
 // OpenAI connection test
 app.get('/api/test-openai', async (req, res) => {
   console.log('🤖 Testing OpenAI connection...');
-  addCorsHeaders(res); // Extra CORS headers for safety
+  addCorsHeaders(res);
   
   if (!openai) {
     return res.status(500).json({ 
@@ -134,12 +134,12 @@ app.get('/api/test-openai', async (req, res) => {
   }
 });
 
-// Generate learning path - OpenAI ONLY
+// Generate learning path with dynamic curriculum
 app.post('/api/generate-path', async (req, res) => {
-  console.log('📝 Learning path generation requested (OpenAI only)');
+  console.log('📝 Learning path generation requested (Dynamic Curriculum)');
   console.log('📊 Request data:', req.body);
   
-  addCorsHeaders(res); // Extra CORS headers for safety
+  addCorsHeaders(res);
 
   // Check if OpenAI is available - REQUIRED
   if (!openai) {
@@ -172,257 +172,235 @@ app.post('/api/generate-path', async (req, res) => {
     }
 
     const totalSteps = duration * 7; // 7 days per week
-    console.log(`🎯 Generating ${totalSteps} detailed steps for "${goal}" (${level} level) - ${duration} weeks × 7 days = ${totalSteps} days using OpenAI`);
+    console.log(`🎯 Generating ${totalSteps} detailed steps for "${goal}" (${level} level) - ${duration} weeks × 7 days = ${totalSteps} days`);
 
-    // Create enhanced prompt for OpenAI with week-by-week structure
-    // Replace the prompt creation section in your server.js with this enhanced version:
+    // Step 1: Generate curriculum outline for ANY subject
+    const generateCurriculumOutline = async (goal, level, totalSteps) => {
+      console.log(`📚 Generating curriculum outline for ${goal}...`);
+      
+      const outlinePrompt = `Create a detailed curriculum outline for learning "${goal}" at ${level} level.
 
-const prompt = `You are creating a ${duration}-week masterclass curriculum for "${goal}" at ${level} level.
+Generate exactly ${totalSteps} unique daily topics that cover all aspects of ${goal}. Each topic must be:
+- Completely different from all other topics
+- Specific and actionable (not generic)
+- Progressive in difficulty
+- Focused on one particular skill/concept/tool
 
-ABSOLUTE REQUIREMENTS FOR UNIQUENESS:
-- Generate exactly ${totalSteps} completely UNIQUE learning experiences
-- Every day must cover a DIFFERENT specific aspect of ${goal}
-- NO repetitive content, NO generic "practice" days
-- Each day = ONE specific skill/concept/technique that's distinct from all others
+Structure the topics in logical progression:
+- Days 1-7: Foundation and basics
+- Days 8-14: Core concepts and skills
+- Days 15-21: Practical application and projects
+- Days 22-28: Advanced techniques and mastery
+
+For ${goal} specifically, think about:
+- What tools/software are used?
+- What are the fundamental concepts?
+- What skills need to be developed?
+- What are the advanced techniques?
+- What are real-world applications?
+
+Return exactly ${totalSteps} specific topics as a JSON array of strings:
+[
+  "Specific topic 1 for ${goal}",
+  "Specific topic 2 for ${goal}",
+  "Specific topic 3 for ${goal}"
+]
+
+Each topic should be detailed enough to fill ${perDay} hours of focused learning. Make every topic unique and valuable for mastering ${goal}.`;
+
+      try {
+        const outlineCompletion = await openai.chat.completions.create({
+          model: "gpt-4o-mini",
+          messages: [
+            {
+              role: "system",
+              content: `You are a curriculum planning expert. Generate ${totalSteps} completely unique learning topics for ${goal}. Each topic must be specific and different. Think about all the different aspects, tools, techniques, and skills involved in ${goal}. Return only JSON array of topic strings.`
+            },
+            {
+              role: "user",
+              content: outlinePrompt
+            }
+          ],
+          max_tokens: 2000,
+          temperature: 0.3,
+        });
+
+        const outlineResponse = outlineCompletion.choices[0].message.content.trim();
+        
+        // Parse the curriculum outline
+        let topics;
+        try {
+          const cleanResponse = outlineResponse.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+          topics = JSON.parse(cleanResponse);
+          
+          if (!Array.isArray(topics) || topics.length === 0) {
+            throw new Error('Invalid topics format');
+          }
+          
+          console.log(`✅ Generated ${topics.length} unique curriculum topics`);
+          console.log('📋 Sample topics:', topics.slice(0, 3).join(', '), '...');
+          
+          return topics.slice(0, totalSteps);
+          
+        } catch (parseError) {
+          console.warn('⚠️ Could not parse curriculum outline, using fallback');
+          
+          // Fallback: Generate structured topics for any subject
+          const fallbackTopics = [];
+          const patterns = [
+            'introduction and setup', 'basic concepts', 'fundamental principles', 'core techniques',
+            'practical exercises', 'hands-on projects', 'problem solving', 'best practices',
+            'advanced concepts', 'specialized tools', 'optimization', 'integration',
+            'real-world applications', 'case studies', 'troubleshooting', 'performance',
+            'professional skills', 'industry standards', 'collaboration', 'deployment',
+            'monitoring', 'maintenance', 'scaling', 'security', 'testing', 'documentation',
+            'advanced projects', 'mastery techniques'
+          ];
+          
+          for (let i = 0; i < totalSteps; i++) {
+            const pattern = patterns[i % patterns.length];
+            const variation = Math.floor(i / patterns.length) + 1;
+            fallbackTopics.push(`${goal} ${pattern}${variation > 1 ? ` ${variation}` : ''}`);
+          }
+          
+          return fallbackTopics;
+        }
+        
+      } catch (error) {
+        console.warn('⚠️ Curriculum generation failed, using structured fallback');
+        
+        // Emergency fallback
+        const emergencyTopics = [];
+        for (let i = 1; i <= totalSteps; i++) {
+          const weekNum = Math.ceil(i / 7);
+          if (weekNum === 1) {
+            emergencyTopics.push(`${goal} fundamentals - Day ${i}`);
+          } else if (weekNum === 2) {
+            emergencyTopics.push(`${goal} core concepts - Day ${i}`);
+          } else if (weekNum === 3) {
+            emergencyTopics.push(`${goal} practical application - Day ${i}`);
+          } else {
+            emergencyTopics.push(`${goal} advanced techniques - Day ${i}`);
+          }
+        }
+        
+        return emergencyTopics;
+      }
+    };
+
+    // Step 2: Generate the curriculum outline
+    const curriculumTopics = await generateCurriculumOutline(goal, level, totalSteps);
+
+    // Step 3: Create detailed learning path using the curriculum
+    const prompt = `Create a comprehensive ${duration}-week learning curriculum for "${goal}" at ${level} level.
+
+MANDATORY CURRICULUM STRUCTURE:
+You must create exactly ${totalSteps} days covering these specific topics in order:
+
+${curriculumTopics.map((topic, index) => `Day ${index + 1}: ${topic}`).join('\n')}
+
+ABSOLUTE REQUIREMENTS:
+- Each day must cover ONLY the specific topic assigned to that day
+- Every day must have completely unique content focused on that topic
+- NO overlap between days - each teaches something completely different
+- Each day should thoroughly cover its assigned topic
 - Daily study time: ${perDay} hours per day
 
-CONTENT UNIQUENESS MANDATES:
-1. UNIQUE DAILY TOPICS: Each day must focus on a completely different ${goal} skill/concept
-2. UNIQUE LABELS: Every "Day X:" title must describe a specific, distinct topic
-3. UNIQUE DETAILS: "What You'll Do" must be completely different each day
-4. UNIQUE TASKS: Every task list must contain specific, non-repetitive actions
-5. UNIQUE RESOURCES: Different learning materials for each day's specific topic
+For each day, create detailed content specifically for that day's topic:
 
-PROGRESSIVE CURRICULUM STRUCTURE:
-Week 1 (Days 1-7): Foundation & Setup
-- Day 1: Environment/tool setup specific to ${goal}
-- Day 2: First core concept of ${goal}
-- Day 3: Second fundamental principle
-- Day 4: Basic hands-on skill #1
-- Day 5: Basic hands-on skill #2
-- Day 6: Integration of concepts learned
-- Day 7: First practical application
-
-Week 2 (Days 8-14): Core Concepts
-- Day 8: Advanced concept #1
-- Day 9: Advanced concept #2
-- Day 10: Specialized technique #1
-- Day 11: Specialized technique #2
-- Day 12: Problem-solving methodology
-- Day 13: Best practices and standards
-- Day 14: Real-world application project
-
-[Continue this pattern, ensuring every day covers a DIFFERENT aspect of ${goal}]
-
-FOR ${goal} SPECIFICALLY, ensure each day covers unique topics like:
-- Different tools/software used in ${goal}
-- Specific techniques and methodologies
-- Various problem-solving approaches
-- Different project types and applications
-- Distinct skill areas within ${goal}
-- Separate theoretical concepts
-- Individual practical exercises
-- Unique troubleshooting scenarios
-- Different industry applications
-- Specific advanced features/capabilities
-
-EXAMPLE of what GOOD unique daily progression looks like:
-Day 1: "Setting up your ${goal} development environment"
-Day 2: "Understanding ${goal} fundamental syntax and structure"
-Day 3: "Working with variables and data types in ${goal}"
-Day 4: "Control flow: loops and conditionals"
-Day 5: "Functions and modular programming"
-Day 6: "Error handling and debugging techniques"
-Day 7: "Building your first complete ${goal} project"
-Day 8: "Object-oriented programming concepts"
-Day 9: "Working with external libraries and APIs"
-Day 10: "Database integration and data management"
-...and so on, each day being completely unique
-
-WHAT TO AVOID (these indicate non-unique content):
-❌ "Advanced Practice" (too generic)
-❌ "Review and Practice" (not learning new content)
-❌ "General Exercises" (not specific enough)
-❌ "Continue practicing" (repetitive)
-❌ "More of the same" (indicates duplication)
-❌ Any day that sounds similar to a previous day
-
-REQUIRED JSON STRUCTURE for exactly ${totalSteps} steps:
+RESPONSE FORMAT - Return exactly ${totalSteps} steps as JSON array:
 [
   {
-    "step": 1,
-    "week": 1,
-    "dayOfWeek": 1,
-    "weekTheme": "Foundation & Setup",
-    "label": "Day 1: [SPECIFIC UNIQUE ${goal} TOPIC]",
-    "description": "[Brief description of this day's unique learning focus]",
-    "details": "[Detailed explanation of this specific aspect of ${goal}, what makes it important, and how it fits into the learning progression. Must be completely unique from all other days.]",
+    "step": [1-${totalSteps}],
+    "week": [1-${duration}],
+    "dayOfWeek": [1-7],
+    "weekTheme": "[Theme based on week progression]",
+    "label": "Day X: [Use EXACT topic from curriculum list above]",
+    "description": "Learn [today's specific topic] for ${goal}",
+    "details": "Comprehensive explanation of [today's specific topic], why it's crucial for ${goal}, how to master it, and how it fits into your overall ${goal} journey. Focus entirely on today's assigned topic.",
     "tasks": [
-      "[Specific task 1 related to today's unique topic] (XX min)",
-      "[Specific task 2 for this particular skill] (XX min)",
-      "[Specific task 3 unique to this concept] (XX min)",
-      "[Specific task 4 for this day's focus] (XX min)"
+      "Specific task 1 for [today's exact topic] (XX min)",
+      "Specific task 2 for [today's exact topic] (XX min)",
+      "Specific task 3 for [today's exact topic] (XX min)",
+      "Specific task 4 for [today's exact topic] (XX min)"
     ],
     "resources": [
-      "[Specific resource 1 for today's unique topic]",
-      "[Specific resource 2 for this particular skill]",
-      "[Specific resource 3 for this concept]",
-      "[Specific resource 4 for this day's focus]"
+      "Resource 1 specifically for [today's topic]",
+      "Resource 2 tailored to this concept",
+      "Resource 3 focused on this skill",
+      "Resource 4 for mastering this topic"
     ],
     "estimatedTime": "${perDay} hours",
-    "weeklyGoal": "[Specific goal for this week]",
+    "weeklyGoal": "Master the topics covered this week",
     "completed": false
   }
 ]
 
-CRITICAL: Make sure days 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28 are just as unique and specific as days 1-14. Each should introduce a NEW aspect of ${goal} that hasn't been covered before.
+CRITICAL INSTRUCTIONS:
+- Day 1 must cover: "${curriculumTopics[0]}"
+- Day 15 must cover: "${curriculumTopics[14] || 'Topic 15'}"
+- Day ${totalSteps} must cover: "${curriculumTopics[totalSteps - 1] || `Topic ${totalSteps}`}"
+- Each day focuses EXCLUSIVELY on its assigned curriculum topic
+- Make every day's content completely different and valuable
 
-Generate exactly ${totalSteps} completely unique learning experiences. Return ONLY the JSON array.`;
+Return ONLY the JSON array with ${totalSteps} unique learning experiences.`;
 
-    console.log('🤖 Calling OpenAI API with enhanced prompt...');
+    console.log('🤖 Calling OpenAI API to create detailed curriculum...');
 
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
-        // Replace the system message in your OpenAI call with this enhanced version:
+        {
+          role: "system",
+          content: `You are an expert curriculum designer who creates learning paths for ANY subject. You have been given a specific curriculum outline with ${totalSteps} unique topics for "${goal}".
 
-{
-  role: "system",
-  content: `You are a master curriculum designer creating a comprehensive ${goal} course. Your specialty is designing learning paths where EVERY SINGLE DAY teaches something completely different and unique.
+Your job is to create detailed daily learning experiences that follow the curriculum EXACTLY:
+- Each day covers only its assigned topic from the curriculum
+- Every day is completely unique and different
+- No generic "practice" or "review" content
+- Each day provides specific, actionable learning for that topic
 
-CORE PRINCIPLES:
-- Every day must cover a distinct, specific aspect of ${goal}
-- No day should repeat content from any other day
-- Each day should introduce new concepts, tools, techniques, or applications
-- Days 15-28 must be just as unique and valuable as days 1-14
-- Avoid any generic "practice" or "review" content
+You understand ${goal} deeply and know how to break it down into ${totalSteps} distinct learning experiences. Follow the curriculum mapping precisely.
 
-For ${goal} at ${level} level, you have deep knowledge of:
-- All the specific tools and technologies used
-- Different methodologies and approaches
-- Various application areas and use cases
-- Progressive skill development pathways
-- Real-world applications and projects
-
-Create exactly ${totalSteps} unique learning experiences that build expertise in ${goal}. Each day should feel like learning something completely new and valuable.
-
-Respond with ONLY the JSON array - no explanations, no markdown, just pure JSON.`
-},
+Respond with ONLY the JSON array - no markdown, no explanations.`
+        },
         {
           role: "user",
           content: prompt
         }
       ],
       max_tokens: 4000,
-      temperature: 0.1, // Lower temperature for more consistent, focused content
+      temperature: 0.1,
     });
 
     console.log('📄 OpenAI response received');
     const response = completion.choices[0].message.content;
-    console.log('📊 Response length:', response.length);
-    console.log('📝 Response preview:', response.substring(0, 200) + '...');
 
-    // Enhanced JSON parsing with multiple fallback strategies
+    // Parse JSON response
     let plan;
     try {
-      // Strategy 1: Direct JSON parse
-      const cleanedResponse = response.trim();
-      plan = JSON.parse(cleanedResponse);
-      console.log('✅ JSON parsed successfully (direct)');
+      const cleanResponse = response.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+      plan = JSON.parse(cleanResponse);
+      console.log('✅ JSON parsed successfully');
     } catch (parseError) {
-      console.warn('⚠️ Direct JSON parse failed:', parseError.message);
-      console.log('📄 Raw response length:', response.length);
-      console.log('📄 First 500 chars:', response.substring(0, 500));
-      console.log('📄 Last 500 chars:', response.substring(Math.max(0, response.length - 500)));
+      console.error('❌ JSON parsing failed:', parseError.message);
+      console.log('Response preview:', response.substring(0, 500));
       
-      try {
-        // Strategy 2: Check if response is truncated and try to fix it
-        let jsonString = response.trim();
-        
-        // Remove any markdown code blocks if present
-        jsonString = jsonString.replace(/```json\s*/g, '');
-        jsonString = jsonString.replace(/```\s*/g, '');
-        jsonString = jsonString.trim();
-        
-        // Check if JSON is complete
-        if (!jsonString.endsWith(']')) {
-          console.log('⚠️ JSON appears truncated, attempting to complete it...');
-          
-          // Find the last complete object
-          const lastCompleteObject = jsonString.lastIndexOf('},');
-          if (lastCompleteObject > 0) {
-            // Truncate to last complete object and close the array
-            jsonString = jsonString.substring(0, lastCompleteObject + 1) + '\n]';
-            console.log('✅ Truncated JSON to last complete object');
-          } else {
-            // If no complete objects found, try to complete the current one
-            const openBraces = (jsonString.match(/\{/g) || []).length;
-            const closeBraces = (jsonString.match(/\}/g) || []).length;
-            
-            // Add missing closing braces
-            for (let i = 0; i < openBraces - closeBraces; i++) {
-              jsonString += '}';
-            }
-            
-            // Ensure array is closed
-            if (!jsonString.includes(']')) {
-              jsonString += ']';
-            }
-            
-            console.log('✅ Added missing braces and brackets');
-          }
-        }
-        
-        // Clean up any formatting issues
-        jsonString = jsonString.replace(/,\s*([}\]])/g, '$1'); // Remove trailing commas
-        jsonString = jsonString.replace(/'/g, '"'); // Replace single quotes
-        jsonString = jsonString.replace(/"/g, '"').replace(/"/g, '"'); // Fix smart quotes
-        
-        plan = JSON.parse(jsonString);
-        console.log('✅ JSON parsed successfully after fixing truncation');
-        
-      } catch (fixError) {
-        console.warn('⚠️ JSON fix failed:', fixError.message);
-        
+      // Try to extract JSON array
+      const jsonMatch = response.match(/\[[\s\S]*\]/);
+      if (jsonMatch) {
         try {
-          // Strategy 3: Extract only complete objects
-          const objectMatches = response.match(/\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/g);
-          if (objectMatches && objectMatches.length > 0) {
-            console.log(`📊 Found ${objectMatches.length} complete objects, attempting to create array...`);
-            
-            // Try to parse each object and build array
-            const validObjects = [];
-            for (const objStr of objectMatches) {
-              try {
-                const obj = JSON.parse(objStr);
-                validObjects.push(obj);
-              } catch (objError) {
-                console.warn('⚠️ Skipping invalid object:', objStr.substring(0, 100));
-              }
-            }
-            
-            if (validObjects.length > 0) {
-              plan = validObjects;
-              console.log(`✅ Successfully parsed ${validObjects.length} objects from response`);
-            } else {
-              throw new Error('No valid objects found in response');
-            }
-          } else {
-            throw new Error('No parseable JSON objects found in response');
-          }
+          plan = JSON.parse(jsonMatch[0]);
+          console.log('✅ JSON extracted successfully');
         } catch (extractError) {
-          console.error('❌ All JSON parsing strategies failed');
-          console.error('Original parse error:', parseError.message);
-          console.error('Fix error:', fixError.message);
-          console.error('Extract error:', extractError.message);
-          console.error('Response preview (first 1000 chars):', response.substring(0, 1000));
-          
-          throw new Error(`Could not parse OpenAI response as JSON. Response starts with: ${response.substring(0, 200)}`);
+          throw new Error(`Could not parse OpenAI response: ${parseError.message}`);
         }
+      } else {
+        throw new Error('No JSON array found in OpenAI response');
       }
     }
 
-    // Validate response structure
+    // Validate response
     if (!Array.isArray(plan)) {
       throw new Error('OpenAI response is not an array');
     }
@@ -431,69 +409,15 @@ Respond with ONLY the JSON array - no explanations, no markdown, just pure JSON.
       throw new Error('OpenAI returned empty learning path');
     }
 
-    // If OpenAI didn't generate enough steps, request more specific content
-    if (plan.length < totalSteps) {
-      console.warn(`⚠️ OpenAI generated ${plan.length} steps, need ${totalSteps}. Requesting additional specific content...`);
-      
-      // Calculate how many more steps we need
-      const missingSteps = totalSteps - plan.length;
-      const lastWeek = Math.ceil(plan.length / 7);
-      const nextWeek = lastWeek + 1;
-      
-      // Create a follow-up prompt for missing content
-      const followUpPrompt = `Continue the ${goal} learning path. Generate ${missingSteps} more specific learning steps for weeks ${nextWeek} onwards.
-
-Previous content covered: ${plan.map(p => p.label).slice(-3).join(', ')}
-
-Generate ${missingSteps} additional steps starting from step ${plan.length + 1}, continuing the ${goal} curriculum with specific, unique content. Each step must cover distinct aspects of ${goal} learning.
-
-Return ONLY a JSON array with exactly ${missingSteps} steps, continuing the sequence and maintaining quality. No markdown code blocks.`;
-
-      try {
-        const followUpCompletion = await openai.chat.completions.create({
-          model: "gpt-4o-mini",
-          messages: [
-            {
-              role: "system",
-              content: `Continue creating specific learning content for ${goal}. Every step must be unique and valuable. Return only JSON array.`
-            },
-            {
-              role: "user",
-              content: followUpPrompt
-            }
-          ],
-          max_tokens: 2000,
-          temperature: 0.2,
-        });
-
-        const followUpResponse = followUpCompletion.choices[0].message.content.trim();
-        
-        // Parse follow-up response with same strategies
-        let additionalSteps;
-        try {
-          additionalSteps = JSON.parse(followUpResponse);
-        } catch (followUpParseError) {
-          // Try cleaning markdown from follow-up
-          let cleanFollowUp = followUpResponse.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
-          additionalSteps = JSON.parse(cleanFollowUp);
-        }
-        
-        // Merge the additional steps
-        plan = [...plan, ...additionalSteps];
-        console.log(`✅ Added ${additionalSteps.length} additional specific steps`);
-        
-      } catch (followUpError) {
-        console.warn('⚠️ Follow-up request failed, using original content only');
+    // Ensure correct number of steps
+    if (plan.length !== totalSteps) {
+      console.warn(`⚠️ Expected ${totalSteps} steps, got ${plan.length}`);
+      if (plan.length > totalSteps) {
+        plan = plan.slice(0, totalSteps);
       }
     }
 
-    // Ensure we have exactly the right number of steps (trim if too many)
-    if (plan.length > totalSteps) {
-      plan = plan.slice(0, totalSteps);
-      console.log(`✅ Trimmed to exactly ${totalSteps} steps`);
-    }
-
-    // Final validation and enhancement of each step
+    // Ensure all steps have required fields
     plan = plan.map((step, index) => {
       const currentStep = index + 1;
       const weekNumber = Math.ceil(currentStep / 7);
@@ -506,38 +430,23 @@ Return ONLY a JSON array with exactly ${missingSteps} steps, continuing the sequ
       ];
       const theme = weekThemes[Math.min(weekNumber - 1, weekThemes.length - 1)];
       
-      // Ensure all required fields exist and are meaningful
       return {
         step: currentStep,
         week: step.week || weekNumber,
         dayOfWeek: step.dayOfWeek || dayOfWeek,
         weekTheme: step.weekTheme || theme,
-        label: step.label || `Day ${currentStep}: ${goal} Learning`,
-        description: step.description || `Focused learning session for ${goal}`,
-        details: step.details || `Detailed learning content for ${goal} at ${level} level.`,
-        tasks: Array.isArray(step.tasks) && step.tasks.length > 0 
-          ? step.tasks 
-          : [`Study ${goal} concepts (${Math.floor(perDay * 60 / 4)} min)`, `Practice exercises (${Math.floor(perDay * 60 / 2)} min)`, `Review and take notes (${Math.floor(perDay * 60 / 4)} min)`],
-        resources: Array.isArray(step.resources) && step.resources.length > 0 
-          ? step.resources 
-          : [`${goal} documentation`, `Online tutorials`, `Practice exercises`, `Community forums`],
+        label: step.label || `Day ${currentStep}: ${curriculumTopics[index] || goal + ' learning'}`,
+        description: step.description || `Learn ${curriculumTopics[index] || 'this topic'} for ${goal}`,
+        details: step.details || `Study ${curriculumTopics[index] || 'this topic'} in depth and practice the skills.`,
+        tasks: Array.isArray(step.tasks) ? step.tasks : [`Study ${curriculumTopics[index] || 'this topic'} (${perDay} hours)`],
+        resources: Array.isArray(step.resources) ? step.resources : [`Resources for ${curriculumTopics[index] || 'this topic'}`],
         estimatedTime: step.estimatedTime || `${perDay} hours`,
-        weeklyGoal: step.weeklyGoal || `Progress in ${goal} learning`,
+        weeklyGoal: step.weeklyGoal || `Master this week's ${goal} concepts`,
         completed: false
       };
     });
 
-    console.log(`✅ Successfully generated ${plan.length} unique, detailed learning steps for ${goal}`);
-
-    // Log a summary of the generated content to verify uniqueness
-    console.log('📋 Generated steps summary:');
-    plan.forEach((step, index) => {
-      if (index < 5 || index >= plan.length - 2) { // Log first 5 and last 2 steps
-        console.log(`  Step ${step.step}: ${step.label}`);
-      } else if (index === 5) {
-        console.log(`  ... (${plan.length - 7} more unique steps) ...`);
-      }
-    });
+    console.log(`✅ Successfully generated ${plan.length} unique learning steps using dynamic curriculum`);
 
     // Send response
     res.json({ 
@@ -549,7 +458,7 @@ Return ONLY a JSON array with exactly ${missingSteps} steps, continuing the sequ
         perDay,
         totalSteps: plan.length,
         generatedAt: new Date().toISOString(),
-        generatedBy: 'OpenAI',
+        generatedBy: 'OpenAI Dynamic Curriculum',
         model: 'gpt-4o-mini',
         corsEnabled: true
       }
@@ -557,12 +466,6 @@ Return ONLY a JSON array with exactly ${missingSteps} steps, continuing the sequ
 
   } catch (error) {
     console.error('❌ Error generating learning path:', error);
-    console.error('❌ Error details:', {
-      message: error.message,
-      code: error.code,
-      type: error.type,
-      stack: error.stack?.split('\n').slice(0, 3).join('\n')
-    });
     
     // Handle specific OpenAI errors
     if (error.code === 'insufficient_quota') {
@@ -583,41 +486,11 @@ Return ONLY a JSON array with exactly ${missingSteps} steps, continuing the sequ
       });
     }
 
-    if (error.code === 'model_not_found') {
-      return res.status(400).json({
-        error: 'OpenAI model not available',
-        message: 'The requested AI model is not available.',
-        code: 'MODEL_NOT_FOUND',
-        solution: 'Check your OpenAI account access'
-      });
-    }
-
-    // Rate limiting
-    if (error.code === 'rate_limit_exceeded') {
-      return res.status(429).json({
-        error: 'Rate limit exceeded',
-        message: 'Too many requests to OpenAI. Please try again in a moment.',
-        code: 'RATE_LIMITED',
-        solution: 'Wait a few seconds and try again'
-      });
-    }
-
-    // Context length error
-    if (error.code === 'context_length_exceeded') {
-      return res.status(400).json({
-        error: 'Prompt too long',
-        message: 'The learning path request is too complex for the AI model.',
-        code: 'PROMPT_TOO_LONG',
-        solution: 'Try a shorter duration or simpler goal'
-      });
-    }
-
-    // Generic error - provide more details
+    // Generic error
     res.status(500).json({ 
       error: 'Failed to generate learning path',
       message: error.message || 'Unknown error occurred',
       code: error.code || 'GENERATION_FAILED',
-      details: 'OpenAI API is required for generating learning paths. Check server logs for more details.',
       debugInfo: {
         hasOpenAI: !!openai,
         hasApiKey: !!process.env.OPENAI_API_KEY,
@@ -631,7 +504,7 @@ console.log('✅ Routes configured successfully');
 
 // Start server
 app.listen(PORT, () => {
-  console.log(`\n🎉 LearnBloom Server Ready with Guaranteed CORS!`);
+  console.log(`\n🎉 LearnBloom Server Ready with Dynamic Curriculum Generation!`);
   console.log(`🌐 Server: http://localhost:${PORT}`);
   console.log(`📊 Health: http://localhost:${PORT}/health`);
   console.log(`🧪 API Test: http://localhost:${PORT}/api/test`);
@@ -641,7 +514,7 @@ app.listen(PORT, () => {
     console.log(`\n❌ WARNING: OpenAI not configured!`);
     console.log(`   Add OPENAI_API_KEY to your .env file to enable learning path generation.`);
   } else {
-    console.log(`\n💡 Ready to generate AI-powered learning paths!`);
+    console.log(`\n💡 Ready to generate AI-powered learning paths for ANY subject!`);
   }
   console.log('');
 });
