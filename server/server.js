@@ -248,27 +248,35 @@ app.post('/api/generate-path', async (req, res) => {
     console.log(`✅ Successfully generated exactly ${plan.length} learning steps`);
 
     // Send response
-      res.json({ 
-        plan,
-        metadata: {
-          goal,
-          level,
-          duration,
-          perDay,
-          totalSteps: plan.length,
-          generatedAt: new Date().toISOString(),
-          generatedBy: totalSteps <= 14 ? 'OpenAI Single-Call' : 'OpenAI Week-by-Week',
-          corsEnabled: true
-        }
-      });
-    } catch (error) {
-      console.error('❌ Error generating learning path:', error.message);
-      res.status(500).json({
-        error: 'Failed to generate learning path',
-        message: error.message
-      });
-    }
+    res.json({ 
+      plan,
+      metadata: {
+        goal,
+        level,
+        duration,
+        perDay,
+        totalSteps: plan.length,
+        generatedAt: new Date().toISOString(),
+        generatedBy: totalSteps <= 14 ? 'OpenAI Single-Call' : 'OpenAI Week-by-Week',
+        corsEnabled: true
+      }
+    });
 
+  } catch (error) {
+    console.error('❌ Error generating learning path:', error);
+    console.error('❌ Error details:', {
+      message: error.message,
+      code: error.code,
+      type: error.type,
+      stack: error.stack
+    });
+
+    res.status(500).json({ 
+      error: 'Failed to generate learning path',
+      message: error.message || 'Unknown error occurred',
+      code: error.code || 'GENERATION_FAILED'
+    });
+  }
 });
 
 // Helper function: Single call generation for short durations
@@ -481,32 +489,60 @@ function generateFallbackWeek(weekNum, weekTheme, goal, level, perDay, startStep
   const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
   const weekSteps = [];
   
+  // Define specific topics based on goal and week theme
+  const getTopicForDay = (day, theme, subject) => {
+    if (subject.toLowerCase().includes('python')) {
+      if (theme === 'Foundation & Setup') {
+        const topics = ['Installation & Setup', 'Variables & Data Types', 'Basic Operators', 'Input/Output', 'Comments & Documentation', 'Practice Review', 'Week Summary'];
+        return topics[day - 1];
+      } else if (theme === 'Core Concepts') {
+        const topics = ['Control Structures', 'Functions Basics', 'Lists & Tuples', 'Dictionaries', 'String Manipulation', 'Practice Problems', 'Code Review'];
+        return topics[day - 1];
+      } else if (theme === 'Practical Application') {
+        const topics = ['File Handling', 'Error Handling', 'Modules & Packages', 'Object Basics', 'Small Projects', 'Code Refactoring', 'Project Review'];
+        return topics[day - 1];
+      } else {
+        const topics = ['Advanced Functions', 'Classes & Objects', 'Libraries', 'Testing', 'Best Practices', 'Final Project', 'Portfolio Review'];
+        return topics[day - 1];
+      }
+    } else {
+      // Generic topics for any subject
+      const baseTopics = ['Introduction', 'Fundamentals', 'Core Skills', 'Applications', 'Advanced Topics', 'Practice', 'Review'];
+      return baseTopics[day - 1];
+    }
+  };
+  
   for (let day = 1; day <= 7; day++) {
     const stepNum = startStep + day - 1;
     const dayName = dayNames[day - 1];
     const isWeekend = day >= 6;
+    const topic = getTopicForDay(day, weekTheme, goal);
     
     weekSteps.push({
       step: stepNum,
       week: weekNum,
       dayOfWeek: day,
       weekTheme: weekTheme,
-      label: `Day ${stepNum}: ${goal} - ${dayName}`,
-      description: `${isWeekend ? 'Review and practice' : 'Learn new concepts'} for ${goal}`,
-      details: `This ${dayName} session focuses on ${weekTheme.toLowerCase()} for ${goal}. ${isWeekend ? 'Today is for review, practice, and consolidation of this week\'s learning.' : 'Build your understanding with theory and hands-on practice.'}`,
-      tasks: [
-        `${isWeekend ? 'Review' : 'Study'} ${goal} concepts (${Math.floor(perDay * 0.4 * 60)} minutes)`,
-        `${isWeekend ? 'Practice' : 'Complete'} exercises (${Math.floor(perDay * 0.4 * 60)} minutes)`,
-        `${isWeekend ? 'Reflect and plan' : 'Take notes'} (${Math.floor(perDay * 0.2 * 60)} minutes)`
+      label: `Day ${stepNum}: ${goal} ${topic}`,
+      description: `${isWeekend ? 'Practice and consolidate' : 'Learn and apply'} ${topic.toLowerCase()} concepts`,
+      details: `This ${dayName} session focuses on ${topic.toLowerCase()} as part of ${weekTheme.toLowerCase()}. ${isWeekend ? 'Today is designed for practicing and consolidating what you\'ve learned this week through hands-on exercises and review.' : 'You\'ll learn new concepts, understand the theory, and apply knowledge through practical exercises.'} Take your time to understand each concept thoroughly.`,
+      tasks: isWeekend ? [
+        `Review this week's ${goal} concepts (${Math.floor(perDay * 0.3 * 60)} min)`,
+        `Complete practice exercises for ${topic.toLowerCase()} (${Math.floor(perDay * 0.4 * 60)} min)`,
+        `Work on mini-project or coding challenges (${Math.floor(perDay * 0.3 * 60)} min)`
+      ] : [
+        `Study ${topic.toLowerCase()} theory and concepts (${Math.floor(perDay * 0.4 * 60)} min)`,
+        `Follow along with ${topic.toLowerCase()} tutorials (${Math.floor(perDay * 0.3 * 60)} min)`,
+        `Practice with hands-on exercises (${Math.floor(perDay * 0.3 * 60)} min)`
       ],
       resources: [
-        `${goal} ${level} documentation`,
-        `Week ${weekNum} tutorials and guides`,
-        `Practice exercises for ${weekTheme.toLowerCase()}`,
-        `${goal} community forums`
+        `${goal} ${level} documentation on ${topic.toLowerCase()}`,
+        `Interactive tutorials for ${topic.toLowerCase()}`,
+        `Practice exercises and examples`,
+        `Community forums and Q&A for ${goal}`
       ],
       estimatedTime: `${perDay} hours`,
-      weeklyGoal: `Master ${weekTheme.toLowerCase()} for ${goal}`,
+      weeklyGoal: `Master ${weekTheme.toLowerCase()} fundamentals for ${goal}`,
       completed: false
     });
   }
