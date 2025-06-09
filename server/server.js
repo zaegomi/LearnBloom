@@ -231,24 +231,23 @@ app.post('/api/generate-path', async (req, res) => {
     
     const prompt = `Create exactly ${totalSteps} learning steps for "${goal}" at ${level} level.
 
-Duration: ${duration} weeks (${totalSteps} days total), ${perDay} hours per day.
+Requirements:
+- Duration: ${duration} weeks (${totalSteps} days total)
+- Daily time: ${perDay} hours per day
+- Progressive difficulty across weeks
 
-Structure this as a ${duration}-week program with progressive themes:
-- Week 1: Foundation & Setup  
-- Week 2: Core Concepts
-- Week 3: Practical Application
-- Week 4+: Advanced Techniques & Mastery
+Week structure:
+Week 1: Foundation & Setup
+Week 2: Core Concepts  
+Week 3: Practical Application
+Week 4+: Advanced Techniques
 
-For each step, include:
-- Detailed explanation of what to learn and why it's important
-- 3-5 specific tasks with time estimates (matching ${perDay} hours total)
-- 3-4 helpful resources (documentation, tutorials, tools)
-- Weekend differentiation (lighter review content for Saturday/Sunday)
+IMPORTANT: Return ONLY a valid JSON array. No explanations, no markdown, no additional text.
 
-Return as JSON array with exactly ${totalSteps} objects in this format:
-{"step": 1, "week": 1, "dayOfWeek": 1, "weekTheme": "Foundation & Setup", "label": "Day 1: Introduction to ${goal}", "description": "Brief description", "details": "Comprehensive explanation of what to do and why", "tasks": ["Task 1 (45 min)", "Task 2 (30 min)", "Task 3 (45 min)"], "resources": ["Resource 1", "Resource 2", "Resource 3"], "estimatedTime": "${perDay} hours", "weeklyGoal": "Week-specific learning objective", "completed": false}
+Format each step exactly like this:
+{"step": 1, "week": 1, "dayOfWeek": 1, "weekTheme": "Foundation & Setup", "label": "Day 1: Introduction to ${goal}", "description": "Brief overview", "details": "What to learn and why", "tasks": ["Task 1 (30min)", "Task 2 (45min)", "Task 3 (45min)"], "resources": ["Resource 1", "Resource 2", "Resource 3"], "estimatedTime": "${perDay} hours", "weeklyGoal": "Week objective", "completed": false}
 
-Make each day unique and progressively build knowledge. Include real, actionable content.`;
+Generate exactly ${totalSteps} unique steps covering ${goal} comprehensively.`;
 
     try {
       const completion = await openai.chat.completions.create({
@@ -256,41 +255,127 @@ Make each day unique and progressively build knowledge. Include real, actionable
         messages: [
           {
             role: "system",
-            content: `You are an expert curriculum designer. Create exactly ${totalSteps} detailed, educational learning steps for "${goal}" at ${level} level. Each step must be substantial and unique. Return ONLY a valid JSON array with no markdown formatting.`
+            content: `You are a JSON generator. Create exactly ${totalSteps} learning steps for "${goal}" at ${level} level. Return ONLY valid JSON array with no markdown, no explanations, no extra text. Each object must have all required fields with proper JSON syntax.`
           },
           {
             role: "user",
             content: prompt
           }
         ],
-        max_tokens: Math.min(4000, totalSteps * 120),
-        temperature: 0.3,
+        max_tokens: Math.min(4000, totalSteps * 100), // More conservative token limit
+        temperature: 0.1, // Lower temperature for more consistent output
+        top_p: 0.9,
+        frequency_penalty: 0,
+        presence_penalty: 0
       });
 
       console.log('📄 OpenAI response received');
       const response = completion.choices[0].message.content;
 
-      // Clean and parse JSON response
+      // Enhanced JSON parsing with multiple repair strategies
       let plan;
       try {
-        // Remove any markdown formatting
+        // First attempt: Clean and parse directly
         const cleanResponse = response.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
         plan = JSON.parse(cleanResponse);
         console.log(`✅ JSON parsed successfully: ${plan.length} steps`);
       } catch (parseError) {
-        console.warn('⚠️ Direct JSON parse failed, trying to extract...');
+        console.warn('⚠️ Direct JSON parse failed, trying extraction and repair...');
+        console.log('📊 Response length:', response.length);
+        console.log('📊 Error position:', parseError.message);
         
-        // Try to extract JSON from response
+        // Try to extract JSON array from response
         const jsonMatch = response.match(/\[[\s\S]*\]/);
         if (jsonMatch) {
-          try {
-            plan = JSON.parse(jsonMatch[0]);
-            console.log(`✅ JSON extracted and parsed: ${plan.length} steps`);
-          } catch (extractError) {
-            throw new Error(`JSON extraction failed: ${extractError.message}`);
+          let jsonString = jsonMatch[0];
+          console.log('📦 Extracted JSON length:', jsonString.length);
+          
+          // Multiple repair attempts
+          for (let attempt = 1; attempt <= 3; attempt++) {
+            try {
+              console.log(`🔧 Repair attempt ${attempt}...`);
+              
+              if (attempt === 1) {
+                // Attempt 1: Fix common issues
+                jsonString = jsonString
+                  .replace(/,\s*}/g, '}')  // Remove trailing commas before }
+                  .replace(/,\s*]/g, ']')  // Remove trailing commas before ]
+                  .replace(/[\u201C\u201D]/g, '"')  // Fix smart quotes
+                  .replace(/[\u2018\u2019]/g, "'")  // Fix smart apostrophes
+                  .trim();
+              } else if (attempt === 2) {
+                // Attempt 2: Fix truncated JSON by finding last complete object
+                const lastCompleteObject = jsonString.lastIndexOf('},');
+                if (lastCompleteObject > 0) {
+                  jsonString = jsonString.substring(0, lastCompleteObject + 1) + '\n]';
+                  console.log('✂️ Truncated to last complete object');
+                }
+              } else if (attempt === 3) {
+                // Attempt 3: More aggressive cleanup
+                jsonString = jsonString
+                  .replace(/([^"\\])\n/g, '$1')  // Remove unexpected newlines
+                  .replace(/,(\s*[}\]])/g, '$1')  // Remove trailing commas
+                  .replace(/([{,]\s*)"([^"]*)":\s*"([^"]*)"([^",}]*)/g, '$1"$2": "$3"')  // Fix quote issues
+                  .trim();
+                
+                // Ensure it ends properly
+                if (!jsonString.endsWith(']')) {
+                  jsonString += ']';
+                }
+              }
+              
+              plan = JSON.parse(jsonString);
+              console.log(`✅ JSON repaired and parsed on attempt ${attempt}: ${plan.length} steps`);
+              break;
+              
+            } catch (repairError) {
+              console.log(`❌ Repair attempt ${attempt} failed:`, repairError.message);
+              
+              if (attempt === 3) {
+                // Final fallback: Generate template-based content
+                console.log('🚨 All JSON repair attempts failed, generating fallback content...');
+                plan = [];
+                
+                for (let i = 1; i <= totalSteps; i++) {
+                  const weekNumber = Math.ceil(i / 7);
+                  const dayOfWeek = ((i - 1) % 7) + 1;
+                  const weekThemes = ["Foundation & Setup", "Core Concepts", "Practical Application", "Advanced Techniques"];
+                  const theme = weekThemes[Math.min(weekNumber - 1, weekThemes.length - 1)];
+                  const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+                  const dayName = dayNames[dayOfWeek - 1];
+                  
+                  plan.push({
+                    step: i,
+                    week: weekNumber,
+                    dayOfWeek: dayOfWeek,
+                    weekTheme: theme,
+                    label: `Day ${i}: ${goal} - ${dayName}`,
+                    description: `Learn essential ${goal} concepts and skills for ${level} level`,
+                    details: `Today you'll focus on ${goal} fundamentals. This ${dayName} session is designed to build your understanding systematically. Start with theory, then move to practical exercises, and finish with reflection and note-taking.`,
+                    tasks: [
+                      `Study ${goal} concepts and theory (${Math.floor(perDay * 0.4 * 60)} minutes)`,
+                      `Complete hands-on exercises (${Math.floor(perDay * 0.4 * 60)} minutes)`,
+                      `Review and take notes (${Math.floor(perDay * 0.2 * 60)} minutes)`
+                    ],
+                    resources: [
+                      `${goal} official documentation`,
+                      `${level} level tutorials and guides`,
+                      `Practice exercises and examples`,
+                      `Community forums and Q&A`
+                    ],
+                    estimatedTime: `${perDay} hours`,
+                    weeklyGoal: `Master ${theme.toLowerCase()} for ${goal}`,
+                    completed: false
+                  });
+                }
+                
+                console.log(`✅ Generated ${plan.length} fallback learning steps`);
+                break;
+              }
+            }
           }
         } else {
-          throw new Error('No valid JSON array found in response');
+          throw new Error('No JSON array found in OpenAI response');
         }
       }
 
