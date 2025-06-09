@@ -1,4 +1,4 @@
-console.log('🚀 Starting LearnBloom server with bulletproof CORS...');
+console.log('🚀 Starting LearnBloom server with enhanced CORS...');
 
 // Enhanced environment loading
 console.log('🔧 Environment check:', {
@@ -9,6 +9,7 @@ console.log('🔧 Environment check:', {
 
 require('dotenv').config({ path: '../.env' });
 const express = require('express');
+const cors = require('cors');
 const OpenAI = require('openai');
 
 console.log('📦 Modules loaded successfully');
@@ -33,13 +34,63 @@ if (process.env.OPENAI_API_KEY) {
   console.error('❌ Please add your OpenAI API key to the .env file');
 }
 
-// CORS middleware - simplified since vercel.json handles headers
+// ENHANCED CORS configuration for local development
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    // List of allowed origins for local development
+    const allowedOrigins = [
+      'http://localhost:3000',
+      'http://127.0.0.1:3000',
+      'http://localhost:3001',
+      'http://127.0.0.1:3001',
+      'https://learn-bloom-client.vercel.app'  // Your production frontend
+    ];
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      console.log(`✅ CORS allowed for origin: ${origin}`);
+      callback(null, true);
+    } else {
+      console.log(`❌ CORS blocked for origin: ${origin}`);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Accept', 'Authorization', 'X-Requested-With'],
+  optionsSuccessStatus: 200
+};
+
+// Apply CORS middleware
+app.use(cors(corsOptions));
+
+// Additional CORS middleware for extra safety
 app.use((req, res, next) => {
   console.log(`📡 ${req.method} ${req.url} from ${req.headers.origin || 'no-origin'}`);
   
-  // Handle OPTIONS preflight (vercel.json handles headers)
+  // Set CORS headers manually as backup
+  const origin = req.headers.origin;
+  const allowedOrigins = [
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    'http://localhost:3001', 
+    'http://127.0.0.1:3001',
+    'https://learn-bloom-client.vercel.app'
+  ];
+  
+  if (allowedOrigins.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+  }
+  
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Accept, Authorization, X-Requested-With');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  
+  // Handle OPTIONS preflight
   if (req.method === 'OPTIONS') {
-    console.log('✅ OPTIONS preflight - returning 200');
+    console.log('✅ OPTIONS preflight handled');
     return res.status(200).end();
   }
   
@@ -138,8 +189,9 @@ app.get('/api/test-openai', async (req, res) => {
 
 // Generate learning path with optimized token usage
 app.post('/api/generate-path', async (req, res) => {
-  console.log('📝 Learning path generation requested (Optimized)');
+  console.log('📝 Learning path generation requested (OpenAI required)');
   console.log('📊 Request data:', req.body);
+  console.log('🌐 Request origin:', req.headers.origin);
 
   // Check if OpenAI is available - REQUIRED
   if (!openai) {
@@ -172,26 +224,31 @@ app.post('/api/generate-path', async (req, res) => {
     }
 
     const totalSteps = duration * 7; // 7 days per week
-    console.log(`🎯 Generating ${totalSteps} detailed steps for "${goal}" (${level} level) - ${duration} weeks × 7 days = ${totalSteps} days`);
+    console.log(`🎯 Generating ${totalSteps} detailed steps for "${goal}" (${level} level) - ${duration} weeks × 7 days = ${totalSteps} days using OpenAI`);
 
-    // FAST SINGLE-CALL APPROACH for all durations
-    console.log('⚡ Using fast single-call generation for all durations...');
+    // OpenAI API call
+    console.log('🤖 Calling OpenAI API...');
     
-    // Optimized prompt that generates all days in one call
     const prompt = `Create exactly ${totalSteps} learning steps for "${goal}" at ${level} level.
 
-Duration: ${duration} weeks (${totalSteps} days), ${perDay} hours per day.
+Duration: ${duration} weeks (${totalSteps} days total), ${perDay} hours per day.
 
-Create a structured ${duration}-week program with these themes:
-Week 1: Foundation & Setup
-Week 2: Core Concepts  
-Week 3: Practical Application
-Week 4+: Advanced Techniques
+Structure this as a ${duration}-week program with progressive themes:
+- Week 1: Foundation & Setup  
+- Week 2: Core Concepts
+- Week 3: Practical Application
+- Week 4+: Advanced Techniques & Mastery
 
-Each step format:
-{"step": [number], "week": [week_number], "dayOfWeek": [1-7], "weekTheme": "[theme]", "label": "Day [number]: [specific_topic]", "description": "Brief description", "details": "What to learn and why", "tasks": ["Task 1 (20min)", "Task 2 (25min)", "Task 3 (15min)"], "resources": ["Resource 1", "Resource 2", "Resource 3"], "estimatedTime": "${perDay} hours", "weeklyGoal": "Week goal", "completed": false}
+For each step, include:
+- Detailed explanation of what to learn and why it's important
+- 3-5 specific tasks with time estimates (matching ${perDay} hours total)
+- 3-4 helpful resources (documentation, tutorials, tools)
+- Weekend differentiation (lighter review content for Saturday/Sunday)
 
-Return JSON array of exactly ${totalSteps} objects. Make each day unique and specific to ${goal}.`;
+Return as JSON array with exactly ${totalSteps} objects in this format:
+{"step": 1, "week": 1, "dayOfWeek": 1, "weekTheme": "Foundation & Setup", "label": "Day 1: Introduction to ${goal}", "description": "Brief description", "details": "Comprehensive explanation of what to do and why", "tasks": ["Task 1 (45 min)", "Task 2 (30 min)", "Task 3 (45 min)"], "resources": ["Resource 1", "Resource 2", "Resource 3"], "estimatedTime": "${perDay} hours", "weeklyGoal": "Week-specific learning objective", "completed": false}
+
+Make each day unique and progressively build knowledge. Include real, actionable content.`;
 
     try {
       const completion = await openai.chat.completions.create({
@@ -199,121 +256,54 @@ Return JSON array of exactly ${totalSteps} objects. Make each day unique and spe
         messages: [
           {
             role: "system",
-            content: `Create exactly ${totalSteps} unique learning steps for "${goal}". Each day must be specific and different. Keep content concise but educational. Return only valid JSON array.`
+            content: `You are an expert curriculum designer. Create exactly ${totalSteps} detailed, educational learning steps for "${goal}" at ${level} level. Each step must be substantial and unique. Return ONLY a valid JSON array with no markdown formatting.`
           },
           {
             role: "user",
             content: prompt
           }
         ],
-        max_tokens: Math.min(4000, totalSteps * 100), // Dynamic token limit
-        temperature: 0.1,
+        max_tokens: Math.min(4000, totalSteps * 120),
+        temperature: 0.3,
       });
 
-      console.log('📄 OpenAI response received for single-call generation');
+      console.log('📄 OpenAI response received');
       const response = completion.choices[0].message.content;
 
-      // Enhanced JSON parsing with repair
+      // Clean and parse JSON response
       let plan;
       try {
+        // Remove any markdown formatting
         const cleanResponse = response.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
         plan = JSON.parse(cleanResponse);
-        console.log(`✅ Single-call generation parsed successfully: ${plan.length} steps`);
+        console.log(`✅ JSON parsed successfully: ${plan.length} steps`);
       } catch (parseError) {
-        console.error('❌ JSON parsing failed:', parseError.message);
-        console.log('📊 Response length:', response.length);
+        console.warn('⚠️ Direct JSON parse failed, trying to extract...');
         
-        // Try to repair JSON
-        try {
-          let jsonString = response.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
-          
-          // If truncated, try to salvage complete objects
-          if (!jsonString.endsWith(']') || parseError.message.includes('Unterminated')) {
-            console.log('⚠️ JSON appears truncated, attempting to salvage...');
-            const lastCompleteObject = jsonString.lastIndexOf('},');
-            if (lastCompleteObject > 0) {
-              jsonString = jsonString.substring(0, lastCompleteObject + 1) + '\n]';
-              console.log('✅ Truncated to last complete object');
-            }
+        // Try to extract JSON from response
+        const jsonMatch = response.match(/\[[\s\S]*\]/);
+        if (jsonMatch) {
+          try {
+            plan = JSON.parse(jsonMatch[0]);
+            console.log(`✅ JSON extracted and parsed: ${plan.length} steps`);
+          } catch (extractError) {
+            throw new Error(`JSON extraction failed: ${extractError.message}`);
           }
-          
-          plan = JSON.parse(jsonString);
-          console.log(`✅ Successfully parsed repaired JSON: ${plan.length} steps`);
-          
-        } catch (repairError) {
-          console.error('❌ JSON repair failed, using template fallback');
-          
-          // Generate template-based fallback
-          plan = [];
-          for (let i = 1; i <= totalSteps; i++) {
-            const weekNumber = Math.ceil(i / 7);
-            const dayOfWeek = ((i - 1) % 7) + 1;
-            const weekThemes = ["Foundation & Setup", "Core Concepts", "Practical Application", "Advanced Techniques"];
-            const theme = weekThemes[Math.min(weekNumber - 1, weekThemes.length - 1)];
-            
-            plan.push({
-              step: i,
-              week: weekNumber,
-              dayOfWeek: dayOfWeek,
-              weekTheme: theme,
-              label: `Day ${i}: ${goal} Topic ${i}`,
-              description: `Learn ${goal} concepts for day ${i}`,
-              details: `Focus on ${goal} skills and build understanding through practice.`,
-              tasks: [`Study ${goal} concepts (20min)`, `Practice exercises (25min)`, `Review notes (15min)`],
-              resources: [`${goal} documentation`, `Online tutorials`, `Practice examples`],
-              estimatedTime: `${perDay} hours`,
-              weeklyGoal: `Master week ${weekNumber} ${goal} concepts`,
-              completed: false
-            });
-          }
-          console.log(`✅ Generated ${plan.length} fallback template steps`);
+        } else {
+          throw new Error('No valid JSON array found in response');
         }
       }
 
-      // Validate and ensure correct structure
+      // Validate response
       if (!Array.isArray(plan)) {
-        throw new Error('OpenAI response is not an array');
+        throw new Error('Response is not an array');
       }
 
       if (plan.length === 0) {
         throw new Error('OpenAI returned empty learning path');
       }
 
-      // Ensure we have the right number of steps
-      if (plan.length !== totalSteps) {
-        console.warn(`⚠️ Expected ${totalSteps} steps, got ${plan.length}. Adjusting...`);
-        
-        if (plan.length > totalSteps) {
-          plan = plan.slice(0, totalSteps);
-        } else if (plan.length < totalSteps) {
-          // Add missing steps
-          const missingSteps = totalSteps - plan.length;
-          for (let i = 0; i < missingSteps; i++) {
-            const stepNumber = plan.length + 1 + i;
-            const weekNumber = Math.ceil(stepNumber / 7);
-            const dayOfWeek = ((stepNumber - 1) % 7) + 1;
-            const weekThemes = ["Foundation & Setup", "Core Concepts", "Practical Application", "Advanced Techniques"];
-            const theme = weekThemes[Math.min(weekNumber - 1, weekThemes.length - 1)];
-            
-            plan.push({
-              step: stepNumber,
-              week: weekNumber,
-              dayOfWeek: dayOfWeek,
-              weekTheme: theme,
-              label: `Day ${stepNumber}: ${goal} Additional Topic`,
-              description: `Learn additional ${goal} concepts`,
-              details: `Focus on expanding your ${goal} knowledge.`,
-              tasks: [`Study ${goal} concepts (20min)`, `Practice exercises (25min)`, `Review notes (15min)`],
-              resources: [`${goal} documentation`, `Tutorials`, `Examples`],
-              estimatedTime: `${perDay} hours`,
-              weeklyGoal: `Master week ${weekNumber} concepts`,
-              completed: false
-            });
-          }
-        }
-      }
-
-      // Ensure all steps have required fields with correct numbering
+      // Ensure correct structure and numbering
       plan = plan.map((step, index) => {
         const correctStepNumber = index + 1;
         const weekNumber = Math.ceil(correctStepNumber / 7);
@@ -328,17 +318,17 @@ Return JSON array of exactly ${totalSteps} objects. Make each day unique and spe
           dayOfWeek: dayOfWeek,
           weekTheme: theme,
           label: step.label || `Day ${correctStepNumber}: ${goal} Learning`,
-          description: step.description || `Learn ${goal} concepts`,
-          details: step.details || `Study ${goal} and practice skills.`,
-          tasks: Array.isArray(step.tasks) ? step.tasks : [`Study ${goal} (20min)`, `Practice (25min)`, `Review (15min)`],
-          resources: Array.isArray(step.resources) ? step.resources : [`${goal} documentation`, `Tutorials`, `Examples`],
+          description: step.description || `Learn ${goal} concepts for day ${correctStepNumber}`,
+          details: step.details || `Focus on ${goal} skills and build understanding through practice and application.`,
+          tasks: Array.isArray(step.tasks) ? step.tasks : [`Study ${goal} concepts (45min)`, `Practice exercises (45min)`, `Review and notes (30min)`],
+          resources: Array.isArray(step.resources) ? step.resources : [`${goal} documentation`, `Online tutorials`, `Practice examples`],
           estimatedTime: `${perDay} hours`,
-          weeklyGoal: step.weeklyGoal || `Master week ${weekNumber} concepts`,
+          weeklyGoal: step.weeklyGoal || `Master week ${weekNumber} ${goal} fundamentals`,
           completed: false
         };
       });
 
-      console.log(`✅ Successfully generated exactly ${plan.length} steps using fast single-call generation`);
+      console.log(`✅ Successfully generated ${plan.length} learning steps`);
 
       // Send response
       res.json({ 
@@ -350,73 +340,69 @@ Return JSON array of exactly ${totalSteps} objects. Make each day unique and spe
           perDay,
           totalSteps: plan.length,
           generatedAt: new Date().toISOString(),
-          generatedBy: 'OpenAI Fast Single-Call Generation',
-          model: 'gpt-4o-mini',
+          generatedBy: 'OpenAI GPT-4o-mini',
           corsEnabled: true
         }
       });
-      
+
     } catch (openaiError) {
       console.error('❌ OpenAI API call failed:', openaiError.message);
+      
+      if (openaiError.code === 'insufficient_quota') {
+        return res.status(429).json({ 
+          error: 'OpenAI API quota exceeded. Please check your billing.',
+          code: 'QUOTA_EXCEEDED'
+        });
+      }
+      
+      if (openaiError.code === 'invalid_api_key') {
+        return res.status(401).json({ 
+          error: 'Invalid OpenAI API key',
+          code: 'INVALID_API_KEY'
+        });
+      }
+
       throw openaiError;
     }
 
   } catch (error) {
     console.error('❌ Error generating learning path:', error);
-    
-    // Handle specific OpenAI errors
-    if (error.code === 'insufficient_quota') {
-      return res.status(429).json({ 
-        error: 'OpenAI API quota exceeded',
-        message: 'You have exceeded your OpenAI usage quota. Please check your billing at platform.openai.com',
-        code: 'QUOTA_EXCEEDED',
-        solution: 'Add payment method or wait for quota reset'
-      });
-    }
-    
-    if (error.code === 'invalid_api_key') {
-      return res.status(401).json({ 
-        error: 'Invalid OpenAI API key',
-        message: 'Your OpenAI API key is invalid or has expired.',
-        code: 'INVALID_API_KEY',
-        solution: 'Generate a new API key at platform.openai.com'
-      });
-    }
+    console.error('❌ Error details:', {
+      message: error.message,
+      code: error.code,
+      type: error.type,
+      stack: error.stack
+    });
 
-    // Generic error
     res.status(500).json({ 
       error: 'Failed to generate learning path',
       message: error.message || 'Unknown error occurred',
-      code: error.code || 'GENERATION_FAILED',
-      debugInfo: {
-        hasOpenAI: !!openai,
-        hasApiKey: !!process.env.OPENAI_API_KEY,
-        errorType: error.constructor.name
-      }
+      code: error.code || 'GENERATION_FAILED'
     });
   }
 });
 
 console.log('✅ Routes configured successfully');
 
-// For Vercel deployment
-module.exports = app;
-
 // Start server for local development
 if (require.main === module) {
   app.listen(PORT, () => {
-    console.log(`\n🎉 LearnBloom Server Ready with Optimized Token Usage!`);
+    console.log(`\n🎉 LearnBloom Server Ready!`);
     console.log(`🌐 Server: http://localhost:${PORT}`);
     console.log(`📊 Health: http://localhost:${PORT}/health`);
     console.log(`🧪 API Test: http://localhost:${PORT}/api/test`);
     console.log(`🤖 OpenAI Test: http://localhost:${PORT}/api/test-openai`);
+    console.log(`📡 CORS enabled for: localhost:3000, 127.0.0.1:3000`);
     
     if (!openai) {
       console.log(`\n❌ WARNING: OpenAI not configured!`);
       console.log(`   Add OPENAI_API_KEY to your .env file to enable learning path generation.`);
     } else {
-      console.log(`\n💡 Ready to generate AI-powered learning paths with chunked generation!`);
+      console.log(`\n💡 Ready to generate AI-powered learning paths!`);
     }
     console.log('');
   });
 }
+
+// For Vercel deployment
+module.exports = app;
