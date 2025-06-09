@@ -226,23 +226,15 @@ app.post('/api/generate-path', async (req, res) => {
     const totalSteps = duration * 7; // 7 days per week
     console.log(`🎯 Generating ${totalSteps} detailed steps for "${goal}" (${level} level) - ${duration} weeks × 7 days = ${totalSteps} days using OpenAI`);
 
-    // Smart generation strategy based on total steps
-    let plan = [];
+    // SIMPLIFIED APPROACH: Always use fallback with AI enhancement
+    console.log('🛠️ Using reliable fallback generation with AI enhancement...');
+    let plan = generateStructuredPlan(goal, level, duration, perDay, totalSteps);
     
-    if (totalSteps <= 14) {
-      // For 1-2 weeks: Single call generation
-      console.log('⚡ Using single-call generation for short duration...');
-      plan = await generateSingleCall(goal, level, duration, perDay, totalSteps, openai);
-    } else {
-      // For 3+ weeks: Week-by-week generation to avoid token limits
-      console.log('📚 Using week-by-week generation for longer duration...');
-      plan = await generateWeekByWeek(goal, level, duration, perDay, totalSteps, openai);
-    }
-
-    // Validate final plan
-    if (plan.length < totalSteps) {
-      console.warn(`⚠️ Generated ${plan.length}/${totalSteps} steps, filling missing steps...`);
-      plan = fillMissingSteps(plan, totalSteps, goal, level, perDay);
+    // Try to enhance a few key steps with AI
+    try {
+      plan = await enhancePlanWithAI(plan, goal, level, openai);
+    } catch (aiError) {
+      console.warn('⚠️ AI enhancement failed, using structured plan as-is:', aiError.message);
     }
 
     console.log(`✅ Successfully generated exactly ${plan.length} learning steps`);
@@ -257,7 +249,7 @@ app.post('/api/generate-path', async (req, res) => {
         perDay,
         totalSteps: plan.length,
         generatedAt: new Date().toISOString(),
-        generatedBy: totalSteps <= 14 ? 'OpenAI Single-Call' : 'OpenAI Week-by-Week',
+        generatedBy: 'Structured Plan with AI Enhancement',
         corsEnabled: true
       }
     });
@@ -278,6 +270,174 @@ app.post('/api/generate-path', async (req, res) => {
     });
   }
 });
+
+// Helper function: Generate structured plan (always works)
+function generateStructuredPlan(goal, level, duration, perDay, totalSteps) {
+  console.log('📚 Creating structured learning plan...');
+  
+  const weekThemes = ["Foundation & Setup", "Core Concepts", "Practical Application", "Advanced Techniques", "Mastery & Projects", "Specialization", "Expert Level", "Professional Applications"];
+  const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  
+  // Define curriculum based on the goal
+  const getCurriculum = (subject, skillLevel) => {
+    const subjectLower = subject.toLowerCase();
+    
+    if (subjectLower.includes('python')) {
+      if (skillLevel === 'Beginner') {
+        return [
+          // Week 1: Foundation & Setup
+          ['Installation & Environment Setup', 'Variables & Data Types', 'Basic Operators & Math', 'Input/Output Functions', 'Comments & Code Style', 'Practice Exercises', 'Week 1 Review'],
+          // Week 2: Core Concepts  
+          ['Conditional Statements', 'Loops (for/while)', 'Lists & Indexing', 'Dictionaries & Sets', 'String Methods', 'Practice Problems', 'Week 2 Review'],
+          // Week 3: Practical Application
+          ['Functions Basics', 'Function Parameters', 'File Reading/Writing', 'Error Handling', 'Modules & Imports', 'Small Projects', 'Week 3 Review'],
+          // Week 4+: Advanced Techniques
+          ['Classes & Objects', 'Object Methods', 'Libraries (requests, json)', 'Web Scraping Basics', 'Data Analysis Intro', 'Final Project', 'Portfolio Review']
+        ];
+      } else if (skillLevel === 'Intermediate') {
+        return [
+          ['Advanced Functions', 'Decorators & Generators', 'List Comprehensions', 'Lambda Functions', 'Error Handling Advanced', 'Code Optimization', 'Week Review'],
+          ['Object-Oriented Programming', 'Inheritance & Polymorphism', 'Magic Methods', 'Design Patterns', 'Unit Testing', 'Debugging Techniques', 'Week Review'],
+          ['Data Structures', 'Algorithms', 'File Handling Advanced', 'Database Connections', 'API Development', 'Performance Tuning', 'Week Review'],
+          ['Web Frameworks (Flask/Django)', 'Database Integration', 'Authentication', 'Deployment', 'Monitoring', 'Production Best Practices', 'Final Project']
+        ];
+      } else { // Advanced
+        return [
+          ['Architecture Patterns', 'Async Programming', 'Metaprogramming', 'Performance Profiling', 'Memory Management', 'Advanced Testing', 'Week Review'],
+          ['Microservices', 'Containerization', 'CI/CD Pipelines', 'Security Practices', 'Code Reviews', 'Documentation', 'Week Review'],
+          ['Machine Learning', 'Data Engineering', 'Distributed Systems', 'Scalability', 'Monitoring', 'Analytics', 'Week Review'],
+          ['Leadership', 'Mentoring', 'Open Source', 'Conference Talks', 'Community Building', 'Innovation Projects', 'Career Planning']
+        ];
+      }
+    } else if (subjectLower.includes('javascript')) {
+      if (skillLevel === 'Beginner') {
+        return [
+          ['JavaScript Basics', 'Variables & Types', 'Functions', 'Arrays & Objects', 'DOM Manipulation', 'Event Handling', 'Week Review'],
+          ['Conditionals & Loops', 'String Methods', 'Number Methods', 'Date Objects', 'Math Object', 'Practice Projects', 'Week Review'],
+          ['ES6 Features', 'Arrow Functions', 'Template Literals', 'Destructuring', 'Modules', 'Async Basics', 'Week Review'],
+          ['Promises & Async/Await', 'Fetch API', 'JSON Handling', 'Error Handling', 'Debugging', 'Final Project', 'Portfolio Review']
+        ];
+      }
+    } else if (subjectLower.includes('data')) {
+      return [
+        ['Data Fundamentals', 'Data Types', 'Data Collection', 'Data Cleaning', 'Basic Statistics', 'Visualization Intro', 'Week Review'],
+        ['Excel/Spreadsheets', 'Formulas & Functions', 'Pivot Tables', 'Charts & Graphs', 'Data Validation', 'Practice Analysis', 'Week Review'],
+        ['SQL Basics', 'Database Queries', 'Joins & Relationships', 'Data Aggregation', 'Advanced SQL', 'Database Design', 'Week Review'],
+        ['Python/R for Data', 'Libraries (pandas, numpy)', 'Data Visualization', 'Statistical Analysis', 'Machine Learning Intro', 'Capstone Project', 'Portfolio Review']
+      ];
+    }
+    
+    // Generic curriculum for any topic
+    return Array.from({ length: duration }, (_, weekIndex) => [
+      `${goal} Introduction`, `Basic Concepts`, `Fundamentals`, `Practice Session`, `Intermediate Topics`, `Review & Practice`, `Week Summary`
+    ]);
+  };
+  
+  const curriculum = getCurriculum(goal, level);
+  const plan = [];
+  
+  for (let step = 1; step <= totalSteps; step++) {
+    const weekNumber = Math.ceil(step / 7);
+    const dayOfWeek = ((step - 1) % 7) + 1;
+    const dayIndex = dayOfWeek - 1;
+    const dayName = dayNames[dayIndex];
+    const isWeekend = dayOfWeek >= 6;
+    
+    const weekTheme = weekThemes[Math.min(weekNumber - 1, weekThemes.length - 1)];
+    const weekCurriculum = curriculum[Math.min(weekNumber - 1, curriculum.length - 1)];
+    const dayTopic = weekCurriculum ? weekCurriculum[dayIndex] : `${goal} Topic ${step}`;
+    
+    // Generate tasks based on time commitment
+    const taskDuration = Math.floor((perDay * 60) / 3); // Split into 3 main tasks
+    const tasks = isWeekend ? [
+      `Review this week's ${goal} concepts (${taskDuration} min)`,
+      `Complete practice exercises for ${dayTopic.toLowerCase()} (${taskDuration} min)`,
+      `Work on mini-projects or challenges (${taskDuration} min)`
+    ] : [
+      `Study ${dayTopic.toLowerCase()} theory and examples (${taskDuration} min)`,
+      `Follow hands-on tutorials for ${dayTopic.toLowerCase()} (${taskDuration} min)`,
+      `Practice with exercises and take notes (${taskDuration} min)`
+    ];
+    
+    plan.push({
+      step: step,
+      week: weekNumber,
+      dayOfWeek: dayOfWeek,
+      weekTheme: weekTheme,
+      label: `Day ${step}: ${goal} ${dayTopic}`,
+      description: `${isWeekend ? 'Practice and consolidate' : 'Learn and apply'} ${dayTopic.toLowerCase()} concepts`,
+      details: `This ${dayName} session focuses on ${dayTopic.toLowerCase()} as part of ${weekTheme.toLowerCase()}. ${isWeekend ? 'Today is designed for practicing and consolidating what you\'ve learned this week through hands-on exercises and review.' : 'You\'ll learn new concepts, understand the theory, and apply knowledge through practical exercises.'} Take your time to understand each concept thoroughly before moving on.`,
+      tasks: tasks,
+      resources: [
+        `${goal} ${level} documentation on ${dayTopic.toLowerCase()}`,
+        `Interactive tutorials for ${dayTopic.toLowerCase()}`,
+        `Practice exercises and coding examples`,
+        `Community forums and Q&A for ${goal}`
+      ],
+      estimatedTime: `${perDay} hours`,
+      weeklyGoal: `Master ${weekTheme.toLowerCase()} fundamentals for ${goal}`,
+      completed: false
+    });
+  }
+  
+  console.log(`✅ Created structured plan with ${plan.length} steps`);
+  return plan;
+}
+
+// Helper function: Enhance plan with AI (optional improvement)
+async function enhancePlanWithAI(plan, goal, level, openai) {
+  console.log('🤖 Attempting to enhance plan with AI details...');
+  
+  try {
+    // Pick a few key steps to enhance (first day of each week)
+    const keySteps = plan.filter(step => step.dayOfWeek === 1); // Mondays only
+    
+    for (const step of keySteps.slice(0, 2)) { // Only enhance first 2 weeks to avoid issues
+      console.log(`🎨 Enhancing step ${step.step}...`);
+      
+      const enhancePrompt = `Improve this learning step for ${goal} (${level} level):
+
+Topic: ${step.label}
+Current description: ${step.description}
+
+Return ONLY this JSON object with enhanced details (no markdown, no array):
+{"details": "Enhanced detailed explanation of what to learn and why", "tasks": ["Enhanced task 1 (30min)", "Enhanced task 2 (30min)"], "resources": ["Enhanced resource 1", "Enhanced resource 2"]}`;
+
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: "Enhance learning content. Return only JSON object." },
+          { role: "user", content: enhancePrompt }
+        ],
+        max_tokens: 300,
+        temperature: 0.1,
+      });
+
+      try {
+        const response = completion.choices[0].message.content;
+        const cleanResponse = response.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+        const enhancement = JSON.parse(cleanResponse);
+        
+        if (enhancement.details) step.details = enhancement.details;
+        if (Array.isArray(enhancement.tasks)) step.tasks = enhancement.tasks;
+        if (Array.isArray(enhancement.resources)) step.resources = enhancement.resources;
+        
+        console.log(`✅ Enhanced step ${step.step}`);
+      } catch (parseError) {
+        console.log(`⚠️ Failed to parse enhancement for step ${step.step}, keeping original`);
+      }
+      
+      // Small delay
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    
+  } catch (error) {
+    console.warn('⚠️ AI enhancement failed:', error.message);
+  }
+  
+  return plan;
+}
+;
 
 // Helper function: Single call generation for short durations
 async function generateSingleCall(goal, level, duration, perDay, totalSteps, openai) {
